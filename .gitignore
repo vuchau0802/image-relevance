@@ -1,0 +1,13 @@
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Frontend
+node_modules/
+dist/
