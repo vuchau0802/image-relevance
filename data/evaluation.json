@@ -1,6 +1,46 @@
-[
-  {
-    "post_id": "post_001",
-    "correct_image_id": "img_001"
-  }
+[{
+        "post_id": "post_001",
+        "correct_image_id": "img_001"
+    },
+    {
+        "post_id": "post_002",
+        "correct_image_id": "img_002"
+    },
+    {
+        "post_id": "post_003",
+        "correct_image_id": "img_007"
+    },
+    {
+        "post_id": "post_004",
+        "correct_image_id": "img_012"
+    },
+    {
+        "post_id": "post_005",
+        "correct_image_id": "img_017"
+    },
+    {
+        "post_id": "post_006",
+        "correct_image_id": "img_022"
+    },
+    {
+        "post_id": "post_007",
+        "correct_image_id": "img_024"
+    },
+    {
+        "post_id": "post_008",
+        "correct_image_id": "img_032"
+    },
+    {
+        "post_id": "post_009",
+        "correct_image_id": "img_037"
+    },
+    {
+        "post_id": "post_010",
+        "correct_image_id": "img_050"
+    },
+    {
+        "post_id": "post_011",
+        "correct_image_id": null,
+        "expected_status": "no_confident_match"
+    }
 ]

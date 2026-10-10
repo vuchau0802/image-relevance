@@ -1,8 +1,67 @@
-[
-  {
-    "id": "post_001",
-    "title": "The behavior of red foxes",
-    "content": "Red foxes adapt to forests, grasslands, and urban environments.",
-    "required_subject": "red fox"
-  }
+[{
+        "id": "post_001",
+        "title": "Red foxes in urban environments",
+        "content": "Red foxes adapt to towns and cities, sometimes walking along streets while searching for food. Their reddish coats and bushy tails distinguish them from other urban animals.",
+        "required_subject": "red fox"
+    },
+    {
+        "id": "post_002",
+        "title": "Family behavior in Vulpes vulpes",
+        "content": "Vulpes vulpes parents care for their young kits. Close contact between a kit and an adult illustrates the social behavior of this fox species.",
+        "required_subject": "Vulpes vulpes"
+    },
+    {
+        "id": "post_003",
+        "title": "Gray wolves in grassland habitats",
+        "content": "Gray wolves move through grassy habitats while exploring their territory. A wolf walking through tall grass illustrates how these wild canines use open environments.",
+        "required_subject": "gray wolf"
+    },
+    {
+        "id": "post_004",
+        "title": "Keeping dogs active at the beach",
+        "content": "Running along a beach gives a pet dog exercise and opportunities to explore. Owners should provide fresh water and supervise their dogs near the sea.",
+        "required_subject": "dog"
+    },
+    {
+        "id": "post_005",
+        "title": "Black bears in natural habitats",
+        "content": "Black bears inhabit wooded regions and nearby grassy clearings. A black bear standing in grass illustrates this species in its outdoor habitat.",
+        "required_subject": "black bear"
+    },
+    {
+        "id": "post_006",
+        "title": "The classic Volkswagen Beetle",
+        "content": "The Volkswagen Beetle is recognizable for its rounded body and distinctive silhouette. A parked classic Beetle illustrates the design of this historic car.",
+        "required_subject": "Volkswagen Beetle"
+    },
+    {
+        "id": "post_007",
+        "title": "Motor scooters for city travel",
+        "content": "Motor scooters provide compact transportation for urban journeys. Their small frames and step-through designs distinguish them from cars and larger motorcycles.",
+        "required_subject": "motor scooter"
+    },
+    {
+        "id": "post_008",
+        "title": "Serving freshly baked pizza",
+        "content": "Freshly baked pizza can be served on a wooden board before slicing. A photo focused on the pizza highlights its crust, toppings, and presentation.",
+        "required_subject": "pizza"
+    },
+    {
+        "id": "post_009",
+        "title": "Preparing a colorful vegetable salad",
+        "content": "A bowl of vegetable salad combines fresh ingredients with different colors and textures. A close view of the salad illustrates a simple plant-based meal.",
+        "required_subject": "vegetable salad"
+    },
+    {
+        "id": "post_010",
+        "title": "Waterfalls and granite cliffs in Yosemite",
+        "content": "Yosemite Valley is known for dramatic granite cliffs and waterfalls above forested terrain. A wide landscape photograph can show these features together.",
+        "required_subject": "Yosemite waterfall"
+    },
+    {
+        "id": "post_011",
+        "title": "Emperor penguins in Antarctica",
+        "content": "Emperor penguins gather on Antarctic sea ice and endure extreme cold. An appropriate illustration should clearly show emperor penguins in their polar habitat.",
+        "required_subject": "emperor penguin"
+    }
 ]
