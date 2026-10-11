@@ -8,6 +8,10 @@
 __pycache__/
 .pytest_cache/
 
+# Data
+/data/ai_calls.jsonl
+/data/processed/
+
 # Frontend
 node_modules/
 dist/
