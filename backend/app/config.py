@@ -24,6 +24,10 @@ class Settings(BaseSettings):
         le=1,
     )
 
+    vision_daily_call_limit: int = Field(
+        default=20,
+        ge=0,
+    )
     postgres_host: str = "127.0.0.1"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     postgres_user: str = Field(min_length=1)

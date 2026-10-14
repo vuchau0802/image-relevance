@@ -28,7 +28,7 @@
 - Ran the supplied commands and inspected their outputs during implementation.
 - Corrected the initial Git setup after commands were run in a folder without a Git repository; initialized the existing project folder and connected it to GitHub.
 - Replaced missing image provenance with individual photo-page URLs and verified creator/license details. Supplied page text for sources the assistant could not retrieve.
-- Background jobs, controlled retries, database persistence, embeddings, matching, review APIs, and a budget guard remain future work.
+- At that earlier stage, background jobs, controlled retries, database persistence, embeddings, matching, review APIs, and a budget guard were future work; later progress is recorded below.
 
 ## Background worker progress
 
@@ -47,4 +47,30 @@ Added --max-items to limit attempts per worker invocation. A two-item
 run completed img_004 and rescheduled img_005 after an API error.
 
 Validation: 23 tests passed, including four database integration tests.
-The corpus processing job remains unfinished.
+At that earlier checkpoint, the corpus processing job was unfinished.
+
+## Phase 2 corpus completion and review
+
+- Added a shared PostgreSQL daily call counter, concurrent-reservation
+  and blocked-worker tests, and a tenant-scoped job-status endpoint.
+- Corrected SDK retry configuration to attempts=0 after inspecting the
+  installed Interactions SDK; earlier attempts=1 allowed an extra retry.
+- Investigated password authentication failures. Recreating the database
+  container restored host connectivity without removing its data volume.
+- Switched vision processing to gemini-3.5-flash-lite and explicitly
+  increased the local daily allowance from 20 to 40. Earlier results keep
+  their recorded model, and existing reservations remain counted.
+- Finished the original job with 47 completed items and 2 failed items.
+- Added failed-image reprocessing and regression tests. The new job
+  completed img_024 and img_026 while preserving their original failures.
+- Verified 50 completed corpus images and 50 metadata records.
+- During targeted visual review, found img_037/img_038 provenance was
+  swapped and post_009 pointed at the wrong image. The earlier Phase 1
+  review note did not establish that every pairing was correct.
+- Corrected the manifest and evaluation reference, then synchronized
+  the two database provenance records after checksum verification.
+- Latest user-run validation: 34 tests passed, 2 dependency warnings.
+- Used AI assistance for the code, tests, diagnostics, documentation,
+  and targeted image review; the user ran PowerShell and verified results.
+- Matching accuracy, calibrated confidence, and broad visual review are
+  not established. img_006's species identification remains unconfirmed.

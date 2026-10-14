@@ -15,7 +15,7 @@ from app.services.classification import (
     ClassificationResult,
     assess_classification,
 )
-
+from app.repositories.usage import reserve_vision_call
 
 PROMPT = """
 Describe the actual visible content of this image.
@@ -75,10 +75,21 @@ def process_image(
         api_key=settings.gemini_api_key.get_secret_value(),
         http_options=types.HttpOptions(
             timeout=60_000,
-            retry_options=types.HttpRetryOptions(attempts=1),
+            retry_options=types.HttpRetryOptions(attempts=0),
         ),
     )
 
+    # Reserve before making any Gemini request.
+    # A denied reservation must not produce an AI-call log.
+    try:
+        reserve_vision_call(
+            tenant_id=tenant_id,
+            daily_limit=settings.vision_daily_call_limit,
+        )
+    except Exception:
+        client.close()
+        raise
+   
     try:
         interaction = client.interactions.create(
             model=settings.vision_model,

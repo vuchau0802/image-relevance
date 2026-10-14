@@ -112,7 +112,7 @@ Actual output:
 
 ## Remaining evidence
 
-Still to implement and demonstrate: persisted background jobs and retries, failure reporting, database migrations and tenant isolation, idempotent processing, budget enforcement, stored image/post embeddings, ranked matching, subject-mismatch rejection, no-confident-match behavior, review endpoints, and measured evaluation results.
+Full-corpus processing and the targeted provenance/evaluation correction are now verified. Remaining evidence includes broader visual result review, broader tenant-isolation checks and authentication, stored image/post embeddings, ranked matching, subject-mismatch rejection, no-confident-match behavior, review endpoints, and measured evaluation results. Concurrent reservation enforcement and blocked-worker behavior have now passed automated tests. Background jobs, retries, idempotent job creation, migrations, and initial budget checks are documented below.
 
 ## Persistent jobs, retries, and bounded processing
 
@@ -129,13 +129,13 @@ Still to implement and demonstrate: persisted background jobs and retries, failu
   img_004 completed; img_005 encountered InternalServerError and was
   rescheduled. The worker stopped after the unsuccessful attempt.
 - img_005 completed on attempt 2 after an InternalServerError.
-- Latest job summary: 49 total, 4 completed, 45 pending,
+- Earlier job snapshot (before subsequent batches): 49 total, 6 completed, 43 pending,
   0 processing, 0 needs_review, and 0 failed.
-- Including img_001, processed separately, 5 corpus images have completed.
+- At that earlier snapshot, including img_001 processed separately, 7 corpus images had completed processing. These counts do not establish classification accuracy.
 - AI call logs include image ID, job ID, attempt, status, and token
   usage when returned. Failed calls had no reported token counts.
 
-### Automated validation
+### Earlier automated validation
 
 Command:
 python -m pytest tests -q
@@ -148,5 +148,154 @@ rejection, and rejection of a claim under a different tenant.
 
 ### Remaining work
 
-The batch is still running. Full-corpus processing, a shared budget
-guard, embeddings, matching, and evaluation are not yet verified.
+At this earlier stage the batch was unfinished. Full-corpus processing has since been verified in the latest snapshot; broader visual review, embeddings, matching, and evaluation remain outstanding. Concurrent reservation enforcement and budget-block claim release are verified in the later test section below.
+
+## Daily vision call guard
+
+- Added a PostgreSQL counter per tenant and UTC date.
+- Four integration tests verify limit enforcement, zero allowance,
+  separate tenant allowances, and lowering a limit below existing usage.
+- At this earlier stage, the full test suite reported 27 passed and 1 Google SDK deprecation warning.
+- A worker run with VISION_DAILY_CALL_LIMIT=0 added no AI-call records.
+- img_006 remained pending with attempts=0 and no claim token or lease.
+- Job counts remained unchanged: 4 completed, 45 pending, 0 failed.
+- Calls made before guard activation have not been backfilled.
+- Concurrency had not been tested at this stage; the later concurrent reservation test passed.
+
+## Guarded batch results and classification review
+
+- With the normal daily limit restored to 20, a two-item run completed
+  img_006 and img_007 on attempt 1.
+- The PostgreSQL counter for tenant demo and UTC date 2026-10-11 showed
+  2 reserved calls after that run. Later counter observations are recorded
+  below; this value is historical.
+- img_006 was stored with subject coyote and model-reported confidence
+  0.95. Its caption was: "A coyote stands on a pine needle-covered ground
+  at the edge of a forest, looking directly at the camera."
+- img_006 was collected from a page describing a wolf. Its actual species
+  requires visual review; neither the page description nor the model
+  prediction establishes ground truth. Its stored completed status means
+  validation and the confidence threshold passed, not verified accuracy.
+- img_007 completed with subject grey wolf.
+- A subsequent run with --max-items 5 claimed img_008 on attempt 1.
+  The attempt encountered APITimeoutError, and the worker stopped after
+  one claim. The job summary continued to show 6 completed, 43 pending,
+  0 processing, 0 needs_review, and 0 failed.
+- The timeout was rescheduled rather than counted as a permanent failure.
+  A subsequent attempt 2 encountered RateLimitError. Attempt 3 later
+  completed with subject gray wolf, and its last_error was cleared.
+- Tests at that earlier stage reported 27 passed and 1 SDK deprecation
+  warning; the latest full suite result is recorded below.
+
+## Interrupted worker recovery
+
+- img_023 received a 429 response; the worker was interrupted during
+  the SDK retry wait.
+- Expired-claim recovery reported: requeued=1, failed=0.
+- After recovery, img_023 was pending with attempts=1, no lease,
+  and last_error="Worker lease expired before completion".
+- The local counter showed 17 reservations for UTC date 2026-10-13.
+- Disabled SDK retries using HttpRetryOptions(attempts=0), leaving
+  retry scheduling to the persistent worker.
+- Earlier reservations may include additional SDK HTTP retries.
+- Validation after the change: 27 passed, 1 SDK deprecation warning.
+
+## Concurrent budget and blocked-worker validation
+
+- Four concurrent reservation requests with a daily limit of two
+  produced two successes and two budget blocks.
+- The stored reservation count remained two.
+- A worker budget-block test preserved the previous attempt count
+  and error, returned the image to pending, and cleared claim ownership.
+- No Gemini request, AI-call log entry, or metadata record was created
+  by the blocked operation.
+- Targeted tests: 6 passed, 1 SDK deprecation warning.
+- Full suite: 29 passed, 1 SDK deprecation warning.
+
+## Job-status API
+
+- GET /jobs/{job_id} returned the demo tenant's persisted job summary.
+- Requesting the same job with X-Tenant-ID: different-tenant returned
+  HTTP 404 with {"detail":"Job not found"}.
+- Omitting X-Tenant-ID returned HTTP 422 for the missing header.
+- Three automated endpoint tests passed.
+- Full suite: 32 passed, 2 dependency deprecation warnings.
+- The tenant header scopes lookups but is caller-controlled.
+  Authentication is still required before deployment.
+
+
+
+## Latest processing snapshot
+
+Based on worker output and database queries supplied by the user:
+
+- All 50 demo images have status completed.
+- image_metadata contains 50 records for tenant demo.
+- Original job df3a71f3-9d5a-499e-b872-f21ca62b45da finished as
+  completed_with_errors: 49 total, 47 completed, 2 failed,
+  0 pending, 0 processing, and 0 needs_review.
+- Reprocessing job b7636238-50ba-46a7-b8a2-caa218d418c5 finished as
+  completed: 2 total, 2 completed, 0 failed, and 0 pending.
+- img_024 completed as Vespa scooter and img_026 as truck on attempt 1
+  in the reprocessing job. Each original job item remains failed with
+  attempts=3; each new item is completed with attempts=1.
+- Creating the reprocessing job twice returned the same job ID.
+- Latest observed full suite: 34 passed, 2 dependency deprecation
+  warnings, in 1.80 seconds after provenance synchronization.
+- Completed status establishes schema/threshold acceptance, not verified
+  classification accuracy or calibrated model confidence.
+- Earlier usage-counter observations are historical. The configured
+  daily allowance was increased from 20 to 40; model changes and limit
+  changes preserve existing reservations.
+
+## Budget and logging limitations
+
+- The application limits reservations per tenant and UTC day, not dollar
+  spending. A $0 free-tier estimate is not a verified billing total.
+- This allowance is separate from Google's project-wide rate limits.
+- Pre-guard calls were not backfilled; earlier SDK retries could make
+  multiple HTTP requests under one reservation.
+- SDK retries are now configured with attempts=0. Interrupted requests
+  retain their reservation and processing attempt; expired leases require
+  recovery. A reserved call may not reach the provider if a process crashes.
+- Logs are local JSONL records; they are not stored in PostgreSQL and
+  are not a crash-proof per-HTTP-request audit trail.
+- Retry scheduling does not yet use provider Retry-After headers or
+  distinguish daily quota exhaustion from shorter rate-limit windows.
+- Concurrent reservation and blocked-worker tests do not establish
+  provider quota availability, calibrated confidence, or classification
+  correctness. Full-corpus processing is now verified; these implementation limitations and the unconfirmed species review remain documented.
+
+## Retry exhaustion: img_024
+
+- Attempt 2 encountered APITimeoutError.
+- Attempt 3 encountered RateLimitError.
+- The item became failed with attempts=3 and
+  last_error="Processing failed: RateLimitError".
+- Job summary: 22 completed, 26 pending, 0 processing,
+  0 needs_review, and 1 failed.
+- The failed item's attempt history was preserved.
+- The latest error concerns provider quota; classification was not obtained.
+
+## Final model and dataset review
+
+- Changed VISION_MODEL to gemini-3.5-flash-lite after failures with
+  gemini-3.8-flash. Subsequent successful requests do not by themselves
+  prove why the earlier requests failed or which model is more accurate.
+- img_027's database record explicitly showed vision_model
+  gemini-3.5-flash-lite and subject Deutsche Post DHL delivery vans.
+- Visual inspection showed img_037 contains three plates of food,
+  while img_038 contains a vegetable salad bowl. Their source references
+  and creators had been swapped in the manifest.
+- Corrected img_037 to Lily Banse's photo --YHSwy6uqvk and img_038
+  to Anna Pelzer's photo IGfIGP5ONV0, with Unsplash License references.
+- Ran scripts.sync_reviewed_provenance successfully. A database query
+  confirmed the corrected creators and source URLs for both images.
+- Corrected post_009's evaluation reference to img_038; PowerShell JSON
+  inspection confirmed the new value.
+- Image files, classification metadata, and job history were unchanged
+  by provenance synchronization. The earlier criticism of img_037's
+  broad prediction arose from the incorrect evaluation reference.
+- img_006's coyote prediction remains unconfirmed at species level.
+  Source titles and model confidence are not treated as ground truth.
+- No ranking or matching accuracy result is claimed from this review.

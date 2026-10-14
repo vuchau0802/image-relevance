@@ -13,10 +13,11 @@ from app.repositories.jobs import (
     fail_claim,
     get_job_summary,
     recover_expired_claims,
+    release_unstarted_claim,
 )
 from app.services.retries import is_retryable
 from app.services.vision import process_image
-
+from app.repositories.usage import VisionBudgetExceededError
 
 def verify_file(claimed):
     image_path = (PROJECT_ROOT / claimed.file_path).resolve()
@@ -68,6 +69,18 @@ def process_claim(claimed, settings):
         )
         return True
 
+    except VisionBudgetExceededError:
+        try:
+            release_unstarted_claim(claimed)
+            print(
+                "Daily vision allowance unavailable; "
+                "image remains pending and attempt count is restored."
+            )
+        except StaleClaimError:
+            print("Ownership expired; recovery will handle the item.")
+
+        return False
+    
     except StaleClaimError:
         print("Ownership expired; result was not saved.")
         return False
@@ -131,7 +144,7 @@ def main():
         if index + 1 < args.max_items:
             time.sleep(2)
 
-    print(f"Attempts started this run: {attempts_started}")
+    print(f"Claims acquired this run: {attempts_started}")
 
     summary = get_job_summary(
         args.tenant_id,

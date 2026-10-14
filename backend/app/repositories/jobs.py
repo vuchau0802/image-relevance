@@ -12,6 +12,7 @@ from app.services.classification import ClassificationResult
 def create_processing_job(
     tenant_id: str,
     idempotency_key: str,
+    source_status: str = "pending",
 ) -> str:
     if not tenant_id or len(tenant_id) > 50:
         raise ValueError("tenant_id must contain 1–50 characters")
@@ -20,6 +21,9 @@ def create_processing_job(
         raise ValueError(
             "idempotency_key must contain 1–100 characters"
         )
+
+    if source_status not in {"pending", "failed"}:
+        raise ValueError("source_status must be pending or failed")
 
     with SessionLocal.begin() as session:
         statement = (
@@ -58,7 +62,7 @@ def create_processing_job(
             select(Image)
             .where(
                 Image.tenant_id == tenant_id,
-                Image.status == "pending",
+                Image.status == source_status,
                 ~already_queued,
             )
             .order_by(Image.id)
@@ -66,6 +70,10 @@ def create_processing_job(
         ).scalars().all()
 
         if images:
+            # Requeue the image without changing earlier job-item history.
+            for image in images:
+                image.status = "pending"
+
             session.execute(
                 insert(JobItem),
                 [
@@ -460,3 +468,58 @@ def recover_expired_claims(
             refresh_job_status(session, job)
 
     return recovered
+
+def release_unstarted_claim(claimed: ClaimedItem) -> None:
+    """Release a claim only when no AI request was started."""
+    with SessionLocal.begin() as session:
+        job = session.execute(
+            select(Job)
+            .where(
+                Job.tenant_id == claimed.tenant_id,
+                Job.id == claimed.job_id,
+            )
+            .with_for_update()
+        ).scalar_one()
+
+        item = session.execute(
+            select(JobItem)
+            .where(
+                JobItem.tenant_id == claimed.tenant_id,
+                JobItem.id == claimed.item_id,
+                JobItem.job_id == claimed.job_id,
+            )
+            .with_for_update()
+        ).scalar_one()
+
+        now = datetime.now(timezone.utc)
+
+        if (
+            item.status != "processing"
+            or item.claim_token != claimed.claim_token
+            or item.attempts != claimed.attempt
+            or item.lease_expires_at is None
+            or item.lease_expires_at <= now
+        ):
+            raise StaleClaimError("Job item ownership has expired")
+
+        image = session.execute(
+            select(Image)
+            .where(
+                Image.tenant_id == claimed.tenant_id,
+                Image.id == item.image_id,
+            )
+            .with_for_update()
+        ).scalar_one()
+
+        # Claiming incremented attempts, but no AI request occurred.
+        item.attempts -= 1
+        item.status = "pending"
+        item.available_at = now
+        item.finished_at = None
+        item.claim_token = None
+        item.lease_expires_at = None
+
+        # Preserve any error from a previous actual attempt.
+        image.status = "pending"
+
+        refresh_job_status(session, job)
