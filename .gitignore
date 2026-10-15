@@ -15,3 +15,8 @@ __pycache__/
 # Frontend
 node_modules/
 dist/
+
+/data/images/
+
+# Local project brief
+/AI Image Understanding Live Capstone.pdf

@@ -13,7 +13,7 @@ Implemented:
 - Bounded worker runs and a shared daily vision call limit.
 - Tenant-scoped job-status API.
 
-Latest validation: 34 tests passed, with two dependency deprecation warnings.
+Latest validation: 39 tests passed, with two dependency deprecation warnings.
 
 Corpus processing is verified: all 50 demo images have completed status
 and 50 metadata records exist. The original job retains two failed items;
@@ -250,3 +250,57 @@ For an existing database seeded before the correction, run:
 This checks registered image paths and checksums and synchronizes only
 the two reviewed demo provenance records. A new seed uses the corrected
 manifest directly. Ordinary repeated seeding does not update provenance.
+
+## Download the original image dataset
+
+The original corpus is packaged as the dataset-v1 GitHub release asset
+image-relevance-images-v1.zip. Image attribution and licenses remain in
+data/manifest.json. The archive and individual original-image hashes are
+pinned in data/dataset.json. The release must be published before its
+public download URL works.
+
+From backend, restore the corpus after installing Python:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.download_dataset
+```
+
+The downloader uses only Python's standard library, requires no API key
+or database, verifies the archive and every image, and refuses to replace
+different existing images. Registered original images and their checksums
+are preserved. Installation uses hard links in a temporary staging area
+on the destination filesystem (the current Windows NTFS setup supports
+this); a filesystem without hard-link support cannot use this installer.
+
+To check already-present images without downloading:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.download_dataset --verify-only
+```
+
+To use the separately downloaded ZIP instead of a network request:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.download_dataset --archive "PATH_TO_ZIP"
+```
+
+The code supports restoring images outside the repository with
+--destination PATH. The seed and worker still use data/images unless
+their configuration is changed separately. Downloading images does not
+seed or change the database, classifications, or job history.
+
+The archive is approximately 161 MB, so allow disk space for the archive,
+temporary image staging, and the installed corpus. The pinned archive
+SHA-256 is:
+
+```text
+0a95fae32a5925ba129b925a2608c2774ca42934d40ec28990661f31ff6d5dc6
+```
+
+The public dataset asset was downloaded and verified against all 50
+original image checksums. data/images/ is ignored, and image removals
+from Git tracking are staged for the dataset-delivery commit. Local
+images remain intact. Earlier commits and the dataset-v1 tag still
+contain image blobs; Git history has not been rewritten. A shallow
+clone of the updated main branch avoids fetching that older history.
+

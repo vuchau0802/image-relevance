@@ -299,3 +299,24 @@ Based on worker output and database queries supplied by the user:
 - img_006's coyote prediction remains unconfirmed at species level.
   Source titles and model confidence are not treated as ground truth.
 - No ranking or matching accuracy result is claimed from this review.
+
+## Dataset delivery and repository tracking
+
+- Packaged the unchanged originals as image-relevance-images-v1.zip:
+  160822607 bytes, SHA-256
+  0a95fae32a5925ba129b925a2608c2774ca42934d40ec28990661f31ff6d5dc6.
+- Added data/dataset.json with the release URL and all 50 original-file
+  sizes and checksums, plus scripts.download_dataset.
+- Five offline tests passed, covering restoration, preservation of
+  existing files, archive integrity, path traversal, and image integrity.
+- Existing-file verification reported 50 original images verified.
+- Both local-archive installation and public release download reported:
+  Verified 50 images; installed 0 missing files.
+- The full suite initially had three database setup timeouts. After
+  waiting for PostgreSQL readiness, the latest run reported 39 passed,
+  2 dependency deprecation warnings, in 2.10 seconds.
+- After git rm --cached, PowerShell confirmed 50 local image files and
+  zero image files in Git's index. These removals are staged, not yet
+  confirmed committed. Local originals and database checksums are intact.
+- Older commits and the dataset-v1 tag retain the image blobs. No history
+  rewrite or full-history repository-size reduction has been verified.

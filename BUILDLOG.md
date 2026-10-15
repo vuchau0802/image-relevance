@@ -74,3 +74,19 @@ At that earlier checkpoint, the corpus processing job was unfinished.
   and targeted image review; the user ran PowerShell and verified results.
 - Matching accuracy, calibrated confidence, and broad visual review are
   not established. img_006's species identification remains unconfirmed.
+
+## Dataset delivery hardening
+
+- Preserved the original 50 images and their registered checksums while
+  preparing a separate dataset-v1 release asset.
+- Used AI assistance for a standard-library downloader, checksum inventory,
+  offline tests, and setup documentation. The user published the asset
+  and verified both local and public download paths.
+- A first download returned 404 because only GitHub's automatic source
+  ZIP was available. Attaching the actual image ZIP resolved the issue.
+- Full-suite database setup timeouts were resolved by waiting for the
+  database container to become ready; the subsequent run passed 39 tests.
+- The user staged removal of images from Git tracking; all 50 originals
+  remain locally. Earlier Git history and the release tag remain unchanged.
+- Other review findings (dependencies, private SDK exception imports,
+  persistence duplication, and isolated test setup) remain outstanding.
