@@ -35,7 +35,7 @@ def test_invalid_threshold_is_rejected():
     metadata = ImageMetadata(
         subject="red fox",
         category="animal",
-        attributes=[],
+        attributes=["orange fur"],
         caption="A red fox",
         confidence=0.94,
     )

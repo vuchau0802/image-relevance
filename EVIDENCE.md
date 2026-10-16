@@ -240,7 +240,7 @@ Based on worker output and database queries supplied by the user:
   in the reprocessing job. Each original job item remains failed with
   attempts=3; each new item is completed with attempts=1.
 - Creating the reprocessing job twice returned the same job ID.
-- Latest observed full suite: 34 passed, 2 dependency deprecation
+- Earlier corpus-checkpoint full suite: 34 passed, 2 dependency deprecation
   warnings, in 1.80 seconds after provenance synchronization.
 - Completed status establishes schema/threshold acceptance, not verified
   classification accuracy or calibrated model confidence.
@@ -258,7 +258,7 @@ Based on worker output and database queries supplied by the user:
 - SDK retries are now configured with attempts=0. Interrupted requests
   retain their reservation and processing attempt; expired leases require
   recovery. A reserved call may not reach the provider if a process crashes.
-- Logs are local JSONL records; they are not stored in PostgreSQL and
+- At the earlier checkpoint, logs were local JSONL records, not stored in PostgreSQL, and
   are not a crash-proof per-HTTP-request audit trail.
 - Retry scheduling does not yet use provider Retry-After headers or
   distinguish daily quota exhaustion from shorter rate-limit windows.
@@ -320,3 +320,73 @@ Based on worker output and database queries supplied by the user:
   confirmed committed. Local originals and database checksums are intact.
 - Older commits and the dataset-v1 tag retain the image blobs. No history
   rewrite or full-history repository-size reduction has been verified.
+
+## Combined Phase 2 review hardening
+
+Commands and actual results from a fresh Python 3.14 virtual environment:
+
+```text
+python -m pip install -r backend/requirements-dev.txt
+Installation succeeded with the curated direct dependencies.
+
+python -m pip check
+No broken requirements found.
+
+python -m pytest tests -q --tb=short
+44 passed, 17 skipped, 2 warnings in 2.79s
+
+python -m scripts.run_integration_tests
+61 passed, 2 warnings in 2.89s
+
+python -m alembic check
+No new upgrade operations detected.
+```
+
+The offline command requires no Docker, .env, or Gemini key. Its 17 skips are
+explicit integration tests, not claimed passes. The full command ran all 61
+tests against the isolated image_relevance_test database on port 55432, with
+fake API credentials. A new database was migrated from the first revision
+through e5a0c4d8b912. The same complete suite also passed in the original
+environment. No actual Gemini requests were made for this verification.
+
+- test_installed_sdk_wrapped_transport_error_is_retryable_without_hidden_retry
+  exercised the installed Interactions SDK with an httpx mock transport for
+  connection and timeout failures. Each case observed one HTTP attempt;
+  retry classification used public cause/status information, not private imports.
+- test_registered_image_verification_rejects_escape_and_changed_bytes checked
+  the common path/checksum validator. Both processing paths now share the
+  metadata upsert; the single-image integration test saved one row on repeated
+  calls and rejected modified image bytes.
+- Seven schema cases reject empty/blank attributes and oversized subjects,
+  captions, attribute lists, and attribute strings.
+- ai_calls records and daily reservations now commit atomically before client
+  creation. Integration tests verify audit creation, completion, blocked-call
+  behavior, rollback of invalid attribution, and tenant isolation.
+- Mocked vision tests verify successful usage, interrupted/failed audit status,
+  client-construction failure, and no client construction on a budget block.
+- Local JSONL append logging is retired for new calls. Historical JSONL is
+  retained locally, not imported or relabeled as database evidence. Hard-killed
+  processes can leave durable started rows requiring reconciliation.
+- Added separate direct runtime/dev requirements, isolated test Compose and CI,
+  shared image validation/persistence, model exports, a frontend placeholder,
+  MIT code license, and a Phase 2 capstone.yaml draft with run/seed/test commands.
+- Legacy published Git history and dataset-v1 still contain original image
+  blobs. The current source snapshot excludes them and restores exact originals
+  from the verified release. History was not rewritten or force-pushed.
+- Dollar spending enforcement, provider quota-window-aware scheduling,
+  authenticated tenant identity, and the Phase 3 matching probes remain outside
+  the implemented milestone. These are not claimed complete by capstone.yaml.
+
+### Applied-repository checks before the combined commit
+
+- Applied additive migration e5a0c4d8b912 to the demo database successfully.
+- Read-only queries confirmed 50 completed demo images, 50 metadata records,
+  and the original completed_with_errors job plus completed reprocessing job.
+- Running the complete suite from the updated repository in the fresh
+  environment reported 61 passed, 2 warnings, in 3.00 seconds.
+- The exact capstone.yaml test command reported 44 passed and 17 integration
+  skips, with no Docker or API credentials required by that command.
+- Live-database API smoke checks returned: /health 200, demo job 200,
+  different-tenant job 404, and missing-tenant job 422.
+- Submission manifest and GitHub Actions YAML parsed successfully. CI has
+  been configured but no remote GitHub Actions run is claimed here.

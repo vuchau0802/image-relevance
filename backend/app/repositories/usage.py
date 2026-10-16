@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.database import SessionLocal
 from app.models.usage import VisionDailyUsage
+from app.models.ai_call import AICall
 
 
 class VisionBudgetExceededError(Exception):
@@ -12,6 +13,8 @@ class VisionBudgetExceededError(Exception):
 def reserve_vision_call(
     tenant_id: str,
     daily_limit: int,
+    *,
+    call_record: dict | None = None,
 ) -> int:
     """Reserve one call and return the new daily count."""
     if not tenant_id or len(tenant_id) > 50:
@@ -65,5 +68,12 @@ def reserve_vision_call(
             raise VisionBudgetExceededError(
                 "Daily vision call limit reached"
             )
+
+        # Audit creation and allowance reservation commit together. No remote
+        # request starts unless this transaction succeeds.
+        if call_record is not None:
+            if call_record["tenant_id"] != tenant_id:
+                raise ValueError("Call record tenant differs from reservation tenant")
+            session.add(AICall(**call_record))
 
     return reserved_count

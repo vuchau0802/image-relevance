@@ -85,3 +85,5 @@ def test_lowered_limit_blocks_existing_usage(budget_database):
         usage.reserve_vision_call(tenant_id, 1)
 
     assert stored_count(factory, tenant_id) == 2
+
+pytestmark = pytest.mark.integration

@@ -88,5 +88,27 @@ At that earlier checkpoint, the corpus processing job was unfinished.
   database container to become ready; the subsequent run passed 39 tests.
 - The user staged removal of images from Git tracking; all 50 originals
   remain locally. Earlier Git history and the release tag remain unchanged.
-- Other review findings (dependencies, private SDK exception imports,
+- At this earlier checkpoint, other findings (dependencies, private SDK exception imports,
   persistence duplication, and isolated test setup) remain outstanding.
+
+## Combined review fixes
+
+- Used AI assistance to implement the requested review fixes in one change.
+- Replaced private SDK exception imports with public exception-cause/status
+  inspection, verified against the actual installed SDK's mocked transport.
+- Centralized metadata upserts and path/checksum checks, bounded model output,
+  and retained the separately documented synchronous retry demo utility.
+- Added a durable ai_calls table and migration. Audit creation and budget
+  reservation share a transaction; client construction happens afterward.
+- Default tests now use fake credentials and skip marked database tests. Added
+  a distinct disposable PostgreSQL service, guarded integration runner, and CI.
+- Verified minimal dependency installation in a fresh virtual environment,
+  pip consistency, 44 offline passes/17 explicit skips, all 61 integration-suite
+  passes, and migration/model agreement. No paid or free Gemini calls were used.
+- Added code licensing, a frontend placeholder, submission-manifest draft, and
+  setup/architecture/limitations documentation. The brief was checked directly
+  for required files and its prohibition on force-pushing published history.
+- Preserved the dataset release, local originals, provenance corrections,
+  original/reprocessing job history, and 50-image corpus classifications.
+- Two dependency deprecation warnings remain; dependencies were not upgraded
+  merely to suppress warnings. Final matching acceptance probes remain pending.

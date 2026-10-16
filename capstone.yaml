@@ -1,0 +1,15 @@
+# Phase 2 submission-pack draft. Matching acceptance probes require Phase 3.
+# Commands assume an activated environment with requirements-dev.txt installed,
+# Docker running, and a configured root .env. See README for setup.
+run: "python backend/scripts/run_demo.py"
+seed: "python backend/scripts/seed_demo.py"
+test: "python -m pytest -c backend/pytest.ini -q --tb=short"
+base_url: "http://127.0.0.1:8000"
+endpoints:
+  - method: GET
+    path: /health
+  - method: GET
+    path: /jobs/{job_id}
+    headers:
+      X-Tenant-ID: demo
+# The seed command prints the job ID. Workers are started separately.

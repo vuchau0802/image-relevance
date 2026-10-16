@@ -6,8 +6,9 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.database import SessionLocal
-from app.models import Image, ImageMetadataRecord,Job, JobItem
+from app.models import Image, Job, JobItem
 from app.services.classification import ClassificationResult
+from app.repositories.metadata import persist_classification
 
 def create_processing_job(
     tenant_id: str,
@@ -300,31 +301,7 @@ def complete_claim(
         if image.checksum != claimed.checksum:
             raise ValueError("Registered image changed during processing")
 
-        statement = insert(ImageMetadataRecord).values(
-            tenant_id=claimed.tenant_id,
-            image_id=claimed.image_id,
-            **result.metadata.model_dump(),
-            vision_model=vision_model,
-        )
-
-        statement = statement.on_conflict_do_update(
-            index_elements=["tenant_id", "image_id"],
-            set_={
-                field: getattr(statement.excluded, field)
-                for field in (
-                    "subject",
-                    "category",
-                    "attributes",
-                    "caption",
-                    "confidence",
-                    "vision_model",
-                )
-            },
-        )
-
-        session.execute(statement)
-
-        image.status = result.status
+        persist_classification(session, image, result, vision_model)
 
         item.status = result.status
         item.finished_at = now

@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: image_relevance_test
+      POSTGRES_PASSWORD: local_test_only
+      POSTGRES_DB: image_relevance_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U image_relevance_test -d image_relevance_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

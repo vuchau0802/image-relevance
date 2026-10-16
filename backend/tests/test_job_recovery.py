@@ -220,7 +220,7 @@ def test_worker_budget_block_preserves_attempt_history(
     # and database claim release active.
     monkeypatch.setattr(runner, "verify_file", lambda claim: image_path)
     monkeypatch.setattr(vision, "get_settings", lambda: settings)
-    monkeypatch.setattr(vision, "PROJECT_ROOT", tmp_path)
+
     monkeypatch.setattr(
         vision.genai,
         "Client",
@@ -230,7 +230,7 @@ def test_worker_budget_block_preserves_attempt_history(
     assert runner.process_claim(claimed, settings) is False
 
     client.interactions.create.assert_not_called()
-    client.close.assert_called_once()
+    client.close.assert_not_called()
     assert not (tmp_path / "data" / "ai_calls.jsonl").exists()
 
     with factory() as session:
@@ -331,3 +331,38 @@ def test_job_creation_rejects_invalid_source_status(temporary_job):
         )
         assert count == 1
 
+
+
+pytestmark = pytest.mark.integration
+
+
+def test_single_image_save_shares_upsert_and_validates_registered_file(
+    temporary_job, monkeypatch, tmp_path,
+):
+    import hashlib
+    from app.repositories import images as image_repository
+    from app.services import image_files
+
+    tenant, _, _, factory = temporary_job
+    corpus = tmp_path / "data" / "images"
+    corpus.mkdir(parents=True)
+    image_path = corpus / "test_image.jpg"
+    image_path.write_bytes(b"registered image content")
+    monkeypatch.setattr(image_files, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(image_repository, "SessionLocal", factory)
+    with factory.begin() as session:
+        image = session.get(Image, (tenant, "test_image"))
+        image.checksum = hashlib.sha256(image_path.read_bytes()).hexdigest()
+
+    for _ in range(2):
+        image_repository.save_classification(tenant, "test_image", sample_result(), "test-model")
+    with factory() as session:
+        assert session.scalar(
+            select(func.count()).select_from(ImageMetadataRecord)
+            .where(ImageMetadataRecord.tenant_id == tenant)
+        ) == 1
+        assert session.get(Image, (tenant, "test_image")).status == "completed"
+
+    image_path.write_bytes(b"changed image content")
+    with pytest.raises(ValueError, match="checksum"):
+        image_repository.save_classification(tenant, "test_image", sample_result(), "test-model")

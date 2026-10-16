@@ -1,3 +1,4 @@
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import uuid4
@@ -51,3 +52,5 @@ def test_concurrent_reservations_respect_limit():
                     VisionDailyUsage.tenant_id == tenant
                 )
             )
+
+pytestmark = pytest.mark.integration

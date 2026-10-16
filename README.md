@@ -1,179 +1,178 @@
 # Image Relevance
 
-A Python/FastAPI backend for classifying images and, in later phases,
-matching images to blog posts.
+Python/FastAPI backend for classifying images and, in Phase 3, matching them
+to blog posts. The Phase 2 corpus run produced 50 completed images and 50
+metadata records. Original retry failures remain in the original job;
+reprocessing completed both failed images without changing that history.
 
-## Current status
+## Architecture
 
-Implemented:
+```text
+FastAPI /health, /jobs/{job_id}
+             |
+       repositories ---------------- PostgreSQL / Alembic
+             |                        images, metadata, jobs,
+       background worker              job items, daily usage, AI calls
+             |
+    path + checksum validation
+             |
+    daily reservation + started audit (one transaction)
+             |
+    Gemini -> schema/confidence validation -> shared metadata upsert
+```
 
-- Vision metadata validation and confidence-based review decisions.
-- PostgreSQL persistence and Alembic migrations.
-- Idempotent batch jobs, claim leases, retries, and recovery.
-- Bounded worker runs and a shared daily vision call limit.
-- Tenant-scoped job-status API.
+HTTP, business logic, persistence, and worker entry points are separate.
+The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
 
-Latest validation: 39 tests passed, with two dependency deprecation warnings.
+Verification: 44 offline tests pass with 17 explicit integration skips; the
+complete isolated-database suite passes all 61 tests. Two dependency
+deprecation warnings remain. No real Gemini calls are used in tests.
 
-Corpus processing is verified: all 50 demo images have completed status
-and 50 metadata records exist. The original job retains two failed items;
-a separate reprocessing job completed both images. Historical job failures
-do not imply current corpus failures. Classification accuracy is not yet
-measured, and img_006's species identification remains unconfirmed.
+## Requirements and installation
 
-Embeddings, ranking, subject-mismatch guards, and frontend integration
-are not yet implemented.
+- Python 3.14 was used for local verification.
+- Docker Desktop with Compose is needed for the API database and integration
+  tests. Offline unit tests need neither Docker nor API credentials.
+- Available Gemini image-model quota is needed only for actual classification.
 
-## Requirements
-
-- Python 3.14.5 was used in the observed environment; other versions have not been verified against backend/requirements.txt.
-- Docker Desktop with Docker Compose
-- Gemini API key with available model quota
-
-## Configuration
-
-Copy .env.example to .env and replace placeholder values.
-
-Keep .env private. The application loads it from the project root.
-
-The example configuration uses gemini-3.5-flash-lite and a daily allowance
-of 40. Earlier results used gemini-3.8-flash; each metadata record stores
-the actual vision_model used. Model changes do not reset daily usage.
-
-VISION_DAILY_CALL_LIMIT limits reservations per tenant and UTC day.
-This counter is separate from Google's project quota and reset schedule.
-Failed requests consume reservations. Calls made before guard activation
-are not included; earlier SDK retries may also have made extra requests.
-
-X-Tenant-ID is caller-controlled for local development.
-Authenticated tenant identity is required before deployment.
-
-## Install dependencies
-
-Run from the project root in PowerShell:
+From the project root in PowerShell:
 
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-If .venv already exists, skip its creation.
+Skip venv creation if it already exists. Production-only installation can use
+backend/requirements.txt. These files list direct runtime dependencies and
+test dependencies separately; optional FastAPI cloud/CLI extras are not used.
 
-For a fresh setup, copy the configuration template:
+For a new setup only:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Skip this command if .env already exists. Edit .env and replace the
-API-key and database-password placeholders before continuing.
+Do not overwrite an existing .env. Replace the API-key and database-password
+placeholders. Never commit this file. The example vision model is
+gemini-3.5-flash-lite and the local daily allowance is 40. Earlier corpus
+results used gemini-3.8-flash; each metadata record stores its actual model.
 
-## Start PostgreSQL and apply migrations
+POSTGRES_PASSWORD initializes a fresh volume. Editing .env does not change an
+existing database user's password. PowerShell environment values override
+.env values. For the API, Python loads .env from the project root.
 
-From the project root:
+## Run and migrate
+
+From the root, this starts PostgreSQL, waits for readiness, applies migrations,
+and serves the API:
 
 ```powershell
-docker compose up -d db
-docker compose ps
+.\.venv\Scripts\python.exe backend/scripts/run_demo.py
 ```
 
-Wait until the database is healthy, then:
+Alternatively, run the steps separately:
 
 ```powershell
+docker compose up -d --wait db
 cd backend
 ..\.venv\Scripts\python.exe -m alembic upgrade head
 ..\.venv\Scripts\python.exe -m scripts.check_database
-```
-
-Expected connection-check output:
-
-```text
-Database connection successful: 1
-```
-
-POSTGRES_PASSWORD initializes the password on a new database volume.
-Changing .env alone does not change an existing database user's password.
-
-## Seed the image corpus
-
-Place the image files referenced by data/manifest.json in data/images.
-
-From backend:
-
-```powershell
-..\.venv\Scripts\python.exe -m scripts.seed_images
-```
-
-The seed validates paths and provenance field formats, computes SHA-256
-checksums, and rejects duplicate IDs or identical image files. It does not
-verify attribution accuracy or license rights. Existing records with the
-same file path and checksum are skipped; changed provenance fields are
-not updated by a repeated seed run.
-
-## Start the API
-
-From backend:
-
-```powershell
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-Interactive API documentation:
-http://127.0.0.1:8000/docs
+Health: http://127.0.0.1:8000/health
 
-Health endpoint:
-http://127.0.0.1:8000/health
+Interactive documentation: http://127.0.0.1:8000/docs
 
-## Create and process a batch job
+Existing installations must apply migration e5a0c4d8b912 before running the
+revised worker, because new AI-call records use PostgreSQL rather than JSONL.
 
-In a second PowerShell window, navigate to backend:
+## Download and seed
+
+Images are delivered through the published dataset-v1 release asset, rather
+than tracked in the current source tree. Attribution is in data/manifest.json.
+data/dataset.json pins the ZIP size/SHA-256 and each original image checksum.
+
+From the root, with the database initialized:
 
 ```powershell
+.\.venv\Scripts\python.exe backend/scripts/seed_demo.py
+```
+
+This downloads about 161 MB, registers the images, and creates the initial
+demo job. It prints a job ID and makes no Gemini calls. It does not classify
+the corpus. Existing unchanged image registrations are skipped.
+
+For individual commands from backend:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.download_dataset
+..\.venv\Scripts\python.exe -m scripts.seed_images
 ..\.venv\Scripts\python.exe -m scripts.create_batch_job
 ```
 
-Copy the returned job_id, then substitute it below:
+The downloader uses only the standard library; it verifies every image and
+refuses to replace differing existing files. It uses same-volume hard links
+for atomic installation, so the destination filesystem must support them
+(the verified Windows NTFS setup does). Allow space for the ZIP and
+temporary image staging. Useful offline options:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.download_dataset --verify-only
+..\.venv\Scripts\python.exe -m scripts.download_dataset --archive "PATH_TO_ZIP"
+```
+
+The seed validates paths and provenance field formats and computes checksums;
+it does not prove source attribution or classification accuracy. Repeated
+seeding does not update changed provenance fields. For a database seeded
+before the reviewed img_037/img_038 correction, run:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.sync_reviewed_provenance
+```
+
+img_037 is Lily Banse's three-plate food photo; img_038 is Anna Pelzer's salad.
+post_009's evaluation reference is img_038. The correction did not alter files
+or model predictions. The MIT license covers project code, not these photos;
+their original source licenses and attributions remain applicable.
+
+## Process and recover jobs
+
+From backend, substitute the job ID printed by the creation script:
 
 ```powershell
 ..\.venv\Scripts\python.exe -m app.workers.runner --job-id YOUR_JOB_ID --max-items 3
 ```
 
-The creation script uses the demo tenant and the
-initial-image-processing idempotency key. Repeating it returns the
-original job rather than creating another job for that key.
+The demo creation script uses the fixed initial-image-processing idempotency
+key. Repeating it returns the same job. The worker stops at its claim limit,
+when nothing is ready, or after an unsuccessful attempt or budget block.
 
-The worker stops when:
-
-- It reaches --max-items.
-- No eligible item is ready.
-- An attempt is unsuccessful.
-- The daily call allowance is unavailable.
-
-Retries have an available_at delay. Rerun the worker when items are
-eligible and provider quota is available. A budget block releases the
-claim without consuming the image's processing attempt.
-
-The worker uses at most three attempts per item and a 120-second claim
-lease. Interrupted workers may leave claims processing until lease
-recovery runs. SDK retries are disabled with attempts=0 in the installed
-Interactions SDK; persistent job retries are managed by the worker.
-
-The guard limits call reservations, not dollar spending or requests per
-minute. A reservation is retained if the process crashes after reserving
-it, even if the request never reaches Gemini. Provider rate-limit reset
-times and Retry-After delays are not currently used by retry scheduling.
-
-Expired claims are recovered when the worker starts. To run recovery
-without contacting Gemini, substitute the job ID:
+An item has at most three attempts per job, a 120-second claim lease, and
+persisted exponential retry delays. A budget block releases its claim without
+consuming a processing attempt. A crash can consume an attempt/reservation;
+expired leases are recovered at worker startup. To recover without AI calls:
 
 ```powershell
 ..\.venv\Scripts\python.exe -c "from app.repositories.jobs import recover_expired_claims; print(recover_expired_claims('demo', 'YOUR_JOB_ID'))"
 ```
 
-## Read job progress
+To create a new job for failed images:
 
-With the API running, substitute the job ID:
+```powershell
+..\.venv\Scripts\python.exe -m scripts.create_reprocessing_job
+```
+
+This uses failed-image-reprocessing-v1. Repeated execution returns that same
+job, rather than starting more retry rounds. Old job items are preserved.
+
+The persistent worker owns batch retries. scripts.process_one is a separate
+synchronous development utility using run_with_retries; the worker never
+nests that retry helper. Each actual utility attempt also reserves allowance
+and creates an audit record. Internal SDK retries are disabled with attempts=0.
+
+## Job-status API and call audit
 
 ```powershell
 Invoke-RestMethod `
@@ -182,125 +181,72 @@ Invoke-RestMethod `
     ConvertTo-Json
 ```
 
-A job unavailable under the supplied tenant returns HTTP 404.
-A missing tenant header returns HTTP 422.
+A missing tenant header returns 422; a job outside that tenant returns 404.
+The header is caller-controlled for local development. Authentication must
+provide trusted tenant identity before deployment.
 
-## Run tests
+New calls are logged to ai_calls. A started row is committed atomically with
+the tenant's daily reservation before client construction. Completion stores
+status, model, image/job attribution, usage when returned, and an error class
+on failure. Concurrent calls do not append to a shared log file. Interrupted
+requests are marked interrupted when possible; a hard process kill or failed
+audit finalization leaves a started row for reconciliation. Historical
+data/ai_calls.jsonl remains local and is not automatically imported.
 
-From backend, with PostgreSQL running and migrations applied:
-
-```powershell
-..\.venv\Scripts\python.exe -m pytest tests -q
-```
-
-Database tests use temporary tenants. The tests do not require
-available Gemini quota; mocked calls use no provider requests.
-
-## Evidence and generated files
-
-See EVIDENCE.md for observed results and BUILDLOG.md for development notes.
-
-data/ai_calls.jsonl and data/processed are generated local artifacts
-and are excluded from Git. Keep source manifests, posts, and evaluation
-references tracked.
-
-A completed classification passed schema validation and the configured
-confidence threshold. It does not establish that the prediction is
-correct; model confidence has not been calibrated.
-
-## Preserve database data
-
-The database uses a persistent Docker volume.
+From the project root, inspect recent records without raw responses/secrets:
 
 ```powershell
-docker compose stop db
+docker compose exec db psql -U image_relevance -d image_relevance -P pager=off -c "SELECT image_id, model, status, input_tokens, output_tokens, error_type FROM ai_calls WHERE tenant_id = 'demo' ORDER BY created_at DESC LIMIT 10;"
 ```
 
-stops the database without removing its stored data.
+## Tests and CI
 
-## Reprocess failed images
-
-From backend, with database migrations applied:
+Offline unit suite, from backend:
 
 ```powershell
-..\.venv\Scripts\python.exe -m scripts.create_reprocessing_job
+..\.venv\Scripts\python.exe -m pytest tests -q --tb=short
 ```
 
-Copy the returned job ID and pass it to the worker's --job-id option.
-This script uses the fixed failed-image-reprocessing-v1 idempotency key.
-Repeated execution returns the same job; it does not start another round.
-Failed images receive new job items with fresh attempt allowances, while
-the earlier failed job items and attempt counts remain unchanged.
+Integration tests are explicitly skipped in this default command. Tests
+override real credentials and database settings before importing the app.
 
-## Reviewed dataset correction
-
-Visual inspection found swapped provenance references for img_037 and
-img_038. The manifest now attributes img_037 (three plates of food) to
-Lily Banse and img_038 (vegetable salad bowl) to Anna Pelzer. post_009's
-evaluation reference is img_038. Image files and model predictions were
-not changed. This is a dataset-label correction, not a measured matching
-accuracy result.
-
-For an existing database seeded before the correction, run:
+For the complete suite, start the separate disposable test database:
 
 ```powershell
-..\.venv\Scripts\python.exe -m scripts.sync_reviewed_provenance
+docker compose -f ..\docker-compose.test.yml -p image-relevance-tests up -d --wait
+..\.venv\Scripts\python.exe -m scripts.run_integration_tests
 ```
 
-This checks registered image paths and checksums and synchronizes only
-the two reviewed demo provenance records. A new seed uses the corrected
-manifest directly. Ordinary repeated seeding does not update provenance.
-
-## Download the original image dataset
-
-The original corpus is packaged as the dataset-v1 GitHub release asset
-image-relevance-images-v1.zip. Image attribution and licenses remain in
-data/manifest.json. The archive and individual original-image hashes are
-pinned in data/dataset.json. The release must be published before its
-public download URL works.
-
-From backend, restore the corpus after installing Python:
+It uses port 55432 and image_relevance_test, applies all migrations, and runs
+unit and integration tests. It does not use the demo database or real Gemini.
+An explicit TEST_DATABASE_URL can override the destination, but its database
+name must end in _test. The Docker test password is a public disposable test
+credential, not a production credential. Remove only the test service with:
 
 ```powershell
-..\.venv\Scripts\python.exe -m scripts.download_dataset
+docker compose -f ..\docker-compose.test.yml -p image-relevance-tests down
 ```
 
-The downloader uses only Python's standard library, requires no API key
-or database, verifies the archive and every image, and refuses to replace
-different existing images. Registered original images and their checksums
-are preserved. Installation uses hard links in a temporary staging area
-on the destination filesystem (the current Windows NTFS setup supports
-this); a filesystem without hard-link support cannot use this installer.
+GitHub Actions provisions the same isolated database. A live API server is not
+needed for tests. See EVIDENCE.md for actual test counts and verification.
 
-To check already-present images without downloading:
+## Limits and submission status
 
-```powershell
-..\.venv\Scripts\python.exe -m scripts.download_dataset --verify-only
-```
+- Call reservations are limited per tenant and UTC day, independently of
+  Google's model/project quotas. Changing models does not reset reservations.
+- A $0 configured free-tier estimate is not verified billing or a dollar
+  budget. Failed/abandoned reservations are not refunded automatically.
+- Pre-guard calls were not backfilled. Older SDK retries could make more than
+  one HTTP request under one historical reservation.
+- Provider Retry-After and quota-window reset times are not yet integrated.
+- Completed classification means bounded schema and confidence checks passed;
+  it does not prove accuracy. img_006's species remains unconfirmed.
+- Embeddings, ranking, mismatch guards, no-match explanations, review APIs,
+  and measured evaluation are still future work. capstone.yaml is a Phase 2
+  manifest draft, not a claim that final acceptance probes are implemented.
+- Current source tracking excludes images, runtime output, secrets, and the
+  project brief. Earlier commits and dataset-v1 retain image blobs. History
+  was preserved in accordance with the brief; no force-push was performed.
 
-To use the separately downloaded ZIP instead of a network request:
-
-```powershell
-..\.venv\Scripts\python.exe -m scripts.download_dataset --archive "PATH_TO_ZIP"
-```
-
-The code supports restoring images outside the repository with
---destination PATH. The seed and worker still use data/images unless
-their configuration is changed separately. Downloading images does not
-seed or change the database, classifications, or job history.
-
-The archive is approximately 161 MB, so allow disk space for the archive,
-temporary image staging, and the installed corpus. The pinned archive
-SHA-256 is:
-
-```text
-0a95fae32a5925ba129b925a2608c2774ca42934d40ec28990661f31ff6d5dc6
-```
-
-The public dataset asset was downloaded and verified against all 50
-original image checksums. data/images/ is ignored, and image removals
-from Git tracking are staged for the dataset-delivery commit. Local
-images remain intact. Earlier commits and the dataset-v1 tag still
-contain image blobs; Git history has not been rewritten. A shallow
-clone of the updated main branch avoids fetching that older history.
-
+The demo database persists in its Docker volume. docker compose stop db
+preserves that data. See BUILDLOG.md for AI assistance and corrections.

@@ -1,10 +1,6 @@
 from unittest.mock import Mock
 import httpx
 import pytest
-from google.genai._gaos.lib.compat_errors import (
-    APIConnectionError,
-    APITimeoutError,
-)
 
 from app.services.retries import is_retryable
 from app.schemas.image import ImageMetadata
@@ -49,7 +45,7 @@ def test_permanent_errors_are_not_retried(status_code):
 
 @pytest.mark.parametrize(
     "error_type",
-    [APIConnectionError, APITimeoutError],
+    [httpx.ConnectError, httpx.ReadTimeout],
 )
 def test_sdk_connection_errors_are_retryable(error_type):
     request = httpx.Request(
@@ -57,7 +53,7 @@ def test_sdk_connection_errors_are_retryable(error_type):
         "https://generativelanguage.googleapis.com/",
     )
 
-    error = error_type(request=request)
+    error = error_type("Simulated transport failure", request=request)
 
     assert is_retryable(error)
 
@@ -68,7 +64,7 @@ def test_invalid_model_output_then_valid_output():
         {
             "subject": "red fox",
             "category": "animal",
-            "attributes": [],
+            "attributes": ["orange fur"],
             "caption": "A red fox",
             "confidence": 0.94
         }

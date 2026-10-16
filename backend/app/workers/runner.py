@@ -1,11 +1,10 @@
 import argparse
-import hashlib
 import json
 import time
 
 from PIL import Image as PillowImage
 
-from app.config import PROJECT_ROOT, get_settings
+from app.config import get_settings
 from app.repositories.jobs import (
     StaleClaimError,
     claim_next_item,
@@ -18,20 +17,10 @@ from app.repositories.jobs import (
 from app.services.retries import is_retryable
 from app.services.vision import process_image
 from app.repositories.usage import VisionBudgetExceededError
+from app.services.image_files import verify_registered_image
 
 def verify_file(claimed):
-    image_path = (PROJECT_ROOT / claimed.file_path).resolve()
-    images_folder = (PROJECT_ROOT / "data" / "images").resolve()
-
-    if not image_path.is_relative_to(images_folder):
-        raise ValueError("Image path is outside the corpus folder")
-
-    checksum = hashlib.sha256(image_path.read_bytes()).hexdigest()
-
-    if checksum != claimed.checksum:
-        raise ValueError("Image file differs from its registered checksum")
-
-    return image_path
+    return verify_registered_image(claimed.file_path, claimed.checksum)
 
 
 def process_claim(claimed, settings):

@@ -1,0 +1,24 @@
+name: Backend checks
+on: [push, pull_request]
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: image_relevance_test
+          POSTGRES_PASSWORD: local_test_only
+          POSTGRES_DB: image_relevance_test
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U image_relevance_test -d image_relevance_test"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - run: python -m scripts.run_integration_tests
+        working-directory: backend
