@@ -2,6 +2,27 @@
 
 These results were captured from the local development run. They demonstrate the implemented features below; they do not yet prove completion of the full capstone.
 
+## Current summary
+
+Based on the local command outputs and reviewed calibration labels supplied by the user:
+
+- All 50 demo images are completed, with 50 metadata records.
+- Stored 768-dimensional gemini-embedding-001 embeddings for 50 images,
+  11 original posts, and six calibration posts.
+- Ranking uses tenant-scoped current embeddings, cosine similarity,
+  explicit subject rules, and a fixed acceptance threshold of 0.85.
+- Calibration: 6 of 6 reviewed cases passed.
+- Regression: 10 of 11 cases passed; 9 of 10 matchable posts returned
+  the expected image, and the penguin no-match case was correctly rejected.
+- The scooter post is a known false rejection: similarity 0.784260.
+- Latest user-run integration suite: 193 passed, 2 dependency deprecation
+  warnings. This documentation update did not rerun the suite.
+- Calibration and regression results are not independent held-out accuracy
+  estimates. Full-capstone completion is not claimed.
+
+Earlier sections preserve historical results; the Phase 3 section below
+records the latest retrieval evidence and limitations.
+
 ## Phase 1: dataset and evaluation references
 
 The dataset checks reported:
@@ -112,7 +133,7 @@ Actual output:
 
 ## Remaining evidence
 
-Full-corpus processing and the targeted provenance/evaluation correction are now verified. Remaining evidence includes broader visual result review, broader tenant-isolation checks and authentication, stored image/post embeddings, ranked matching, subject-mismatch rejection, no-confident-match behavior, review endpoints, and measured evaluation results. Concurrent reservation enforcement and blocked-worker behavior have now passed automated tests. Background jobs, retries, idempotent job creation, migrations, and initial budget checks are documented below.
+Full-corpus processing, the targeted provenance correction, stored image/post embeddings, ranked matching, subject rejection, no-confident-match behavior, and database tenant isolation are verified in the sections below. Calibration and regression results are recorded in the Phase 3 section. Remaining evidence includes broader visual classification review, independent held-out evaluation, authenticated tenant identity, and review endpoints. Concurrent reservation enforcement and blocked-worker behavior have passed automated tests. Background jobs, retries, idempotent job creation, migrations, and budget checks are documented below.
 
 ## Persistent jobs, retries, and bounded processing
 
@@ -148,7 +169,7 @@ rejection, and rejection of a claim under a different tenant.
 
 ### Remaining work
 
-At this earlier stage the batch was unfinished. Full-corpus processing has since been verified in the latest snapshot; broader visual review, embeddings, matching, and evaluation remain outstanding. Concurrent reservation enforcement and budget-block claim release are verified in the later test section below.
+At this earlier stage the batch was unfinished. Full-corpus processing has since been verified. Embeddings, matching, calibration, and regression checks are now documented in the Phase 3 section; broader visual review and independent held-out evaluation remain outstanding. Concurrent reservation enforcement and budget-block claim release are verified in the later test section below.
 
 ## Daily vision call guard
 
@@ -374,8 +395,9 @@ environment. No actual Gemini requests were made for this verification.
   blobs. The current source snapshot excludes them and restores exact originals
   from the verified release. History was not rewritten or force-pushed.
 - Dollar spending enforcement, provider quota-window-aware scheduling,
-  authenticated tenant identity, and the Phase 3 matching probes remain outside
-  the implemented milestone. These are not claimed complete by capstone.yaml.
+  authenticated tenant identity, and the Phase 3 matching probes were outside
+  that Phase 2 milestone. Later matching results are documented in the Phase 3
+  section; this historical manifest statement is not a claim about its current contents.
 
 ### Applied-repository checks before the combined commit
 
@@ -390,3 +412,104 @@ environment. No actual Gemini requests were made for this verification.
   different-tenant job 404, and missing-tenant job 422.
 - Submission manifest and GitHub Actions YAML parsed successfully. CI has
   been configured but no remote GitHub Actions run is claimed here.
+
+## Phase 3: Embedding retrieval and acceptance threshold
+
+### Implementation verified
+
+- Stored embeddings for 50 images and 11 original posts.
+- Added six reviewed calibration posts and their embeddings.
+- Used gemini-embedding-001 with 768 dimensions and
+  SEMANTIC_SIMILARITY.
+- Embedded image descriptions and post text; evaluation labels
+  were excluded from embedding inputs.
+- Validated and normalized vectors before caching.
+- Cache keys include tenant, source, model, dimensions, task type,
+  and input hash.
+- Verified that repeated requests reuse cached embeddings without
+  another provider call or budget reservation.
+- Recorded embedding calls with image or post attribution.
+  Token usage remains NULL when unavailable from the SDK.
+- Added cosine ranking, explicit subject rules, and a minimum
+  similarity threshold.
+- Exposed GET /posts/{post_id}/images with X-Tenant-ID.
+- Verified database tenant isolation, including identical post IDs
+  under different tenants.
+
+### Calibration
+
+Six manually reviewed calibration cases were used to choose an
+initial similarity threshold of 0.85.
+
+- Three positive cases returned their reviewed acceptable images.
+- Three negative cases returned no_confident_match.
+- Lowest positive top score: 0.939782.
+- Highest negative top score: 0.785585.
+- All six calibration cases passed after applying the threshold.
+
+These are calibration results, not independent evaluation results.
+
+### Regression results with the threshold fixed at 0.85
+
+The original 11 posts were checked without changing the threshold.
+
+- 10 of 11 cases passed.
+- 9 of 10 matchable posts returned the expected top image.
+- All nine accepted top predictions matched their reference labels.
+- The emperor penguin post correctly returned no_confident_match.
+- The motor scooter post was rejected despite having a compatible
+  image.
+
+These posts influenced development and are reported as regression
+examples, not an untouched held-out evaluation set.
+
+### Known limitation: false rejection of the scooter
+
+For post_007, img_024 passed the subject guard but had cosine
+similarity 0.784260, below the 0.85 threshold.
+
+The skateboard negative calibration case scored 0.785585.
+A single global threshold cannot accept this scooter example while
+rejecting that negative using the current scores and guard.
+
+The threshold remains 0.85. The scooter result is retained as a
+known false rejection.
+
+Subject rules rely on model-generated descriptions and explicit
+aliases. They do not independently verify visual content. The small
+calibration set does not establish general accuracy.
+
+### Test verification
+
+Command run from backend:
+
+    ..\.venv\Scripts\python.exe -m scripts.run_integration_tests
+
+Result: 188 passed, 2 dependency deprecation warnings.
+
+Coverage includes embedding validation and caching, budget handling,
+ranking, subject rejection, threshold boundaries, API behavior, and
+database tenant isolation.
+## Reproducible matching report
+
+The user ran the updated isolated integration suite: 193 passed, two
+existing dependency deprecation warnings, in 4.41 seconds.
+
+Command run from backend:
+
+    ..\.venv\Scripts\python.exe -m scripts.evaluate_matching
+
+Observed output:
+
+    Threshold: 0.85
+    Calibration: 6 / 6
+    Regression: 10 / 11
+
+The saved local report is data/processed/matching_evaluation.json. It
+contains separate calibration/regression counts and per-case decisions,
+configuration, and SHA-256 hashes of the label files. Five offline tests
+cover metric accounting, undefined precision with no accepted predictions,
+rejection of incomplete/unsupported rankings, and inconsistent responses.
+The evaluator does not tune the threshold or make Gemini requests.
+The report is generated output and remains gitignored. These results do
+not establish independent held-out accuracy.

@@ -1,4 +1,6 @@
-# Phase 2 submission-pack draft. Matching acceptance probes require Phase 3.
+# Development manifest: Phase 3 cached matching is implemented.
+# Seed registers images and creates a job; processing, posts, and embeddings
+# require the separate README steps. Full-capstone completion is not claimed.
 # Commands assume an activated environment with requirements-dev.txt installed,
 # Docker running, and a configured root .env. See README for setup.
 run: "python backend/scripts/run_demo.py"
@@ -13,3 +15,8 @@ endpoints:
     headers:
       X-Tenant-ID: demo
 # The seed command prints the job ID. Workers are started separately.
+
+  - method: GET
+    path: /posts/{post_id}/images
+    headers:
+      X-Tenant-ID: demo

@@ -11,7 +11,8 @@ class AICall(Base):
 
     tenant_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     call_id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    image_id: Mapped[str] = mapped_column(String(100))
+    image_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    post_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     job_id: Mapped[str | None] = mapped_column(String(36))
     job_item_id: Mapped[str | None] = mapped_column(String(36))
     attempt: Mapped[int | None] = mapped_column(Integer)
@@ -27,6 +28,11 @@ class AICall(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
+        CheckConstraint(
+            "(image_id IS NOT NULL AND post_id IS NULL) OR "
+            "(image_id IS NULL AND post_id IS NOT NULL)",
+            name="ck_ai_calls_exactly_one_source",
+        ),
         CheckConstraint(
             "status IN ('started', 'completed', 'needs_review', 'failed', 'interrupted')",
             name="ck_ai_calls_status",

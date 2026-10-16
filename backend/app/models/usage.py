@@ -29,3 +29,27 @@ class VisionDailyUsage(Base):
             name="ck_vision_daily_usage_nonnegative",
         ),
     )
+
+class EmbeddingDailyUsage(Base):
+    __tablename__ = "embedding_daily_usage"
+
+    tenant_id: Mapped[str] = mapped_column(
+        String(50),
+        primary_key=True,
+    )
+    usage_date: Mapped[date] = mapped_column(
+        Date,
+        primary_key=True,
+    )
+    calls_reserved: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default="0",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "calls_reserved >= 0",
+            name="ck_embedding_daily_usage_nonnegative",
+        ),
+    )

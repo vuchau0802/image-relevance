@@ -1,0 +1,55 @@
+[{
+        "id": "cal_001",
+        "title": "A fox on a wet road",
+        "content": "A red fox stands on wet asphalt and looks toward the camera.",
+        "required_subject": "red fox",
+        "acceptable_image_ids": ["img_001"],
+        "expected_status": "match",
+        "reviewed": true
+    },
+    {
+        "id": "cal_002",
+        "title": "A wolf walking through grass",
+        "content": "A gray wolf walks through tall green grass in daylight.",
+        "required_subject": "gray wolf",
+        "acceptable_image_ids": ["img_007"],
+        "expected_status": "match",
+        "reviewed": true
+    },
+    {
+        "id": "cal_003",
+        "title": "A parked vintage scooter",
+        "content": "A white vintage motor scooter is parked on a paved surface.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": ["img_024"],
+        "expected_status": "match",
+        "reviewed": true
+    },
+    {
+        "id": "cal_004",
+        "title": "A dog riding a skateboard",
+        "content": "A dog balances on a skateboard while rolling across a skate park.",
+        "required_subject": "dog",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "reviewed": true
+    },
+    {
+        "id": "cal_005",
+        "title": "Preparing pizza dough",
+        "content": "A chef stretches and tosses raw pizza dough above a flour-covered workbench.",
+        "required_subject": "pizza",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "reviewed": true
+    },
+    {
+        "id": "cal_006",
+        "title": "Emperor penguins on Antarctic ice",
+        "content": "A group of emperor penguins stands together on Antarctic sea ice.",
+        "required_subject": "emperor penguin",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "reviewed": true
+    }
+]

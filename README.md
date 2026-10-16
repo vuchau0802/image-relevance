@@ -1,18 +1,18 @@
 # Image Relevance
 
-Python/FastAPI backend for classifying images and, in Phase 3, matching them
-to blog posts. The Phase 2 corpus run produced 50 completed images and 50
+Python/FastAPI backend for classifying images and matching their descriptions
+to blog posts using cached embeddings, subject rules, and cosine similarity. The Phase 2 corpus run produced 50 completed images and 50
 metadata records. Original retry failures remain in the original job;
 reprocessing completed both failed images without changing that history.
 
 ## Architecture
 
 ```text
-FastAPI /health, /jobs/{job_id}
+FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
              |
        repositories ---------------- PostgreSQL / Alembic
-             |                        images, metadata, jobs,
-       background worker              job items, daily usage, AI calls
+             |                        images, metadata, jobs, posts,
+       background worker              embeddings, daily usage, AI calls
              |
     path + checksum validation
              |
@@ -24,16 +24,17 @@ FastAPI /health, /jobs/{job_id}
 HTTP, business logic, persistence, and worker entry points are separate.
 The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
 
-Verification: 44 offline tests pass with 17 explicit integration skips; the
-complete isolated-database suite passes all 61 tests. Two dependency
-deprecation warnings remain. No real Gemini calls are used in tests.
+Latest user-run verification: the complete isolated-database suite passed all
+193 tests, with two dependency deprecation warnings. Offline runs explicitly
+skip database integration tests. Tests make no real Gemini requests.
 
 ## Requirements and installation
 
 - Python 3.14 was used for local verification.
 - Docker Desktop with Compose is needed for the API database and integration
   tests. Offline unit tests need neither Docker nor API credentials.
-- Available Gemini image-model quota is needed only for actual classification.
+- Available Gemini quota is needed for actual classification and embedding generation.
+  Ranking and evaluation use cached embeddings without provider requests.
 
 From the project root in PowerShell:
 
@@ -85,8 +86,9 @@ Health: http://127.0.0.1:8000/health
 
 Interactive documentation: http://127.0.0.1:8000/docs
 
-Existing installations must apply migration e5a0c4d8b912 before running the
-revised worker, because new AI-call records use PostgreSQL rather than JSONL.
+Existing installations must run alembic upgrade head before using revised
+workers or matching. Phase 3 adds posts, versioned embeddings, a separate
+embedding allowance, and post attribution in PostgreSQL AI-call records.
 
 ## Download and seed
 
@@ -199,6 +201,65 @@ From the project root, inspect recent records without raw responses/secrets:
 docker compose exec db psql -U image_relevance -d image_relevance -P pager=off -c "SELECT image_id, model, status, input_tokens, output_tokens, error_type FROM ai_calls WHERE tenant_id = 'demo' ORDER BY created_at DESC LIMIT 10;"
 ```
 
+## Embeddings, matching, and evaluation
+
+After image processing is complete, run from backend:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.seed_posts
+..\.venv\Scripts\python.exe -m scripts.embed_one_image --image-id img_001
+..\.venv\Scripts\python.exe -m scripts.embed_one_post --post-id post_001
+```
+
+Generate embeddings for each completed image and seeded post before ranking
+that corpus. The single-source scripts accept --image-id or --post-id and
+--tenant-id. Repeating a command reuses the current cache entry. Each cache
+miss can consume one embedding reservation and provider request; stop a batch
+on errors. Image embeddings use stored descriptions, not another image upload.
+
+Embedding settings are EMBEDDING_MODEL=gemini-embedding-001,
+EMBEDDING_DIMENSIONS=768, and EMBEDDING_DAILY_CALL_LIMIT=100. Both source types
+use SEMANTIC_SIMILARITY. Cache keys include the tenant, source, model,
+dimensions, task type, and exact prepared-input hash. Changed source text
+requires a new embedding. Vectors are validated and normalized.
+
+With current embeddings available:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.rank_images --post-id post_010 --top 5
+
+Invoke-RestMethod `
+    -Uri "http://127.0.0.1:8000/posts/post_010/images?top=5" `
+    -Headers @{ "X-Tenant-ID" = "demo" } |
+    ConvertTo-Json -Depth 6
+```
+
+The ranking endpoint is read-only and makes no Gemini requests. It checks
+explicit subject aliases and selected caption evidence, then applies
+MIN_MATCH_SIMILARITY=0.85. Scores are cosine similarities, not probabilities.
+Responses are matched, no_confident_match, incomplete, or unsupported_subject.
+Missing current image embeddings make results provisional. An unknown post
+under that tenant returns 404; a missing current post embedding returns 409.
+The local tenant header is caller-controlled and is not authentication.
+
+Calibration labels are in data/calibration.json. After visual review, seed
+its posts with scripts.seed_calibration and embed cal_001 through cal_006
+using scripts.embed_one_post. Review labels before setting reviewed=true;
+expected answers are not included in embedded post text.
+
+To reproduce the reviewed calibration and original-post regression checks:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.evaluate_matching
+```
+
+The script uses cached rankings and the configured threshold without tuning
+it. It saves data/processed/matching_evaluation.json (gitignored), including
+per-case decisions, returned scores, configuration, and label-file hashes.
+Current results at 0.85 are 6/6 calibration cases and 10/11 regression cases.
+The scooter post is a false rejection: score 0.784260. These small,
+development-influenced sets do not establish independent held-out accuracy.
+
 ## Tests and CI
 
 Offline unit suite, from backend:
@@ -241,9 +302,13 @@ needed for tests. See EVIDENCE.md for actual test counts and verification.
 - Provider Retry-After and quota-window reset times are not yet integrated.
 - Completed classification means bounded schema and confidence checks passed;
   it does not prove accuracy. img_006's species remains unconfirmed.
-- Embeddings, ranking, mismatch guards, no-match explanations, review APIs,
-  and measured evaluation are still future work. capstone.yaml is a Phase 2
-  manifest draft, not a claim that final acceptance probes are implemented.
+- Embeddings, ranking, subject guards, no-match reasons, and measured
+  calibration/regression checks are implemented. Review APIs, the frontend,
+  authenticated tenant identity, and independent held-out evaluation remain
+  outstanding. Subject rules rely on model descriptions and explicit aliases.
+- capstone.yaml lists development endpoints. Its seed command registers images
+  and creates a job; processing, post seeding, and embeddings are separate steps.
+  Final-capstone completion is not claimed.
 - Current source tracking excludes images, runtime output, secrets, and the
   project brief. Earlier commits and dataset-v1 retain image blobs. History
   was preserved in accordance with the brief; no force-push was performed.

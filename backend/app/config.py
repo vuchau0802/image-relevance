@@ -28,6 +28,29 @@ class Settings(BaseSettings):
         default=20,
         ge=0,
     )
+
+    embedding_model: str = Field(
+        default="gemini-embedding-001",
+        min_length=1,
+    )
+
+    embedding_dimensions: int = Field(
+        default=768,
+        ge=1,
+        le=3072,
+    )
+
+    embedding_daily_call_limit: int = Field(
+        default=100,
+        ge=0,
+    )
+
+    min_match_similarity: float = Field(
+        default=0.85,
+        ge=-1,
+        le=1,
+    )
+
     postgres_host: str = "127.0.0.1"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     postgres_user: str = Field(min_length=1)
