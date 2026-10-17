@@ -15,8 +15,9 @@ Based on the local command outputs and reviewed calibration labels supplied by t
 - Regression: 10 of 11 cases passed; 9 of 10 matchable posts returned
   the expected image, and the penguin no-match case was correctly rejected.
 - The scooter post is a known false rejection: similarity 0.784260.
-- Latest user-run integration suite: 247 passed, 2 dependency deprecation
-  warnings. This documentation update did not rerun the suite.
+- Latest verified integration suite: 250 passed, 2 dependency deprecation
+  warnings, agent-run against the isolated test database. The earlier latest
+  user-run result was 247 passed.
 - Calibration and regression results are not independent held-out accuracy
   estimates. Full-capstone completion is not claimed.
 
@@ -529,12 +530,14 @@ not establish independent held-out accuracy.
 - The submission seed command returned exit code 0 on the existing demo.
 - Readiness confirmed 50 expected images, 11 original posts, no source
   issues, and no missing current embeddings.
-- Latest user-run suite: 243 passed, two dependency deprecation warnings,
-  in 4.61 seconds after the submission seed command verification.
+- Earlier preparation-checkpoint suite: 243 passed, two dependency deprecation
+  warnings, in 4.61 seconds after submission seed verification. The subsequent
+  247-test result is recorded in Additional hardening below.
 
 The live batch verified cache reuse. Fresh-provider processing and a fresh
-end-to-end preparation run are not claimed from this result. Simultaneous
-embedding workers have not yet been tested.
+end-to-end preparation run are not claimed from this result. At this
+checkpoint, simultaneous embedding claims had not yet been tested; the
+later claim-acquisition test is documented below.
 
 ## Additional hardening
 
@@ -546,7 +549,39 @@ embedding workers have not yet been tested.
   and mocked provider request.
 - Four simultaneous claim requests using separate PostgreSQL connections
   acquired four distinct items and tokens, each with attempts=1.
+- Claim transactions serialize on the parent job lock; the test establishes
+  distinct ownership under contention, not parallel claim throughput.
 - Concurrent claim acquisition is verified. Simultaneous provider requests
   and complete concurrent worker execution are not established by this test.
 - Latest user-run integration suite: 247 passed, two dependency deprecation
   warnings, in 4.59 seconds.
+
+## Fresh preparation integration verification
+
+The agent ran scripts.run_integration_tests: 250 passed, two existing
+dependency deprecation warnings, in 7.58 seconds.
+
+Three new integration tests use an initially empty demo tenant inside a
+rolled-back test transaction, a generated JPEG, and two temporary posts.
+They run the real source seeders, vision worker, embedding worker, cache,
+reservation/audit repositories, readiness check, and ranking service.
+Gemini responses and external Docker/process launches are mocked. The test
+runner applies migrations before the tests; these cases do not independently
+exercise fresh Docker provisioning, dataset download, or subprocess wiring.
+
+Verified behavior:
+
+- Fresh preparation classifies the image, embeds the image and both posts,
+  and produces a fox match plus a penguin no-match decision.
+- Four attributed provider-call audit rows are completed (one vision and
+  three embedding calls), using fake responses only.
+- Repeating preparation makes no additional provider calls.
+- A zero embedding allowance leaves pending items with attempts restored;
+  restoring allowance resumes the same embedding job without reclassification.
+- A simulated vision timeout persists a retry, resumes the same vision job,
+  and preserves both failed and completed audit records.
+
+The existing demo database was not used or changed by these tests. Full-corpus
+preparation against the live provider remains unverified. This verification
+does not establish general matching accuracy or remove corpus-specific guard
+limitations.

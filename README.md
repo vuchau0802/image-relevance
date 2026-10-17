@@ -24,8 +24,8 @@ FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
 HTTP, business logic, persistence, and worker entry points are separate.
 The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
 
-Latest user-run verification: the complete isolated-database suite passed all
-247 tests, with two dependency deprecation warnings. Offline runs explicitly
+Latest verified integration suite: the agent-run isolated-database suite passed
+250 tests, with two dependency deprecation warnings. Offline runs explicitly
 skip database integration tests. Tests make no real Gemini requests.
 
 ## Requirements and installation
@@ -115,8 +115,11 @@ and matching is ready. Exit code 2 means preparation is unfinished. Inspect
 the worker summary before rerunning after retry delays or allowance resets.
 Failed or needs_review images require investigation.
 
-A fresh preparation run has not yet been verified end to end. The verified
-local run reused existing classifications and embeddings.
+Automated integration tests prepare a fresh miniature corpus using real seed,
+worker, cache, audit, and ranking code with fake Gemini responses. They also
+verify resumption after a budget block and a provider timeout. Docker/process
+launches are mocked in these tests. A fresh full-corpus run with the live
+provider remains unverified; the live local run reused existing data.
 
 For individual commands from backend:
 
@@ -364,7 +367,8 @@ needed for tests. See EVIDENCE.md for actual test counts and verification.
   outstanding. Subject rules rely on model descriptions and explicit aliases.
 - capstone.yaml lists development endpoints. Its seed command delegates to
   resumable preparation and reports readiness after processing and embedding.
-  Fresh end-to-end preparation and final-capstone completion are not claimed.
+  Fresh full-corpus preparation with the live provider and final-capstone
+  completion are not claimed.
 - Current source tracking excludes images, runtime output, secrets, and the
   project brief. Earlier commits and dataset-v1 retain image blobs. History
   was preserved in accordance with the brief; no force-push was performed.
