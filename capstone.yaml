@@ -1,8 +1,9 @@
-# Development manifest: Phase 3 cached matching is implemented.
-# Seed registers images and creates a job; processing, posts, and embeddings
-# require the separate README steps. Full-capstone completion is not claimed.
-# Commands assume an activated environment with requirements-dev.txt installed,
-# Docker running, and a configured root .env. See README for setup.
+# Development manifest: persistent vision and embedding processing.
+# Seed prepares matching and preserves progress between runs.
+# Exit 0 means ready; exit 2 means preparation remains unfinished.
+# Fresh preparation may require retries or additional daily allowance.
+# Full-capstone completion is not claimed.
+# Requires installed dependencies, Docker, and a configured root .env.
 run: "python backend/scripts/run_demo.py"
 seed: "python backend/scripts/seed_demo.py"
 test: "python -m pytest -c backend/pytest.ini -q --tb=short"
@@ -14,7 +15,6 @@ endpoints:
     path: /jobs/{job_id}
     headers:
       X-Tenant-ID: demo
-# The seed command prints the job ID. Workers are started separately.
 
   - method: GET
     path: /posts/{post_id}/images

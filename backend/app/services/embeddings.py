@@ -35,7 +35,29 @@ class EmbeddingResult:
 def get_or_create_embedding(
     key: EmbeddingCacheKey,
     prepared: PreparedEmbeddingInput,
+    *,
+    job_id: str | None = None,
+    job_item_id: str | None = None,
+    attempt: int | None = None,
 ) -> EmbeddingResult:
+    attribution = (job_id, job_item_id, attempt)
+
+    if any(value is not None for value in attribution):
+        if (
+            not isinstance(job_id, str)
+            or not job_id.strip()
+            or len(job_id) > 36
+            or not isinstance(job_item_id, str)
+            or not job_item_id.strip()
+            or len(job_item_id) > 36
+            or isinstance(attempt, bool)
+            or not isinstance(attempt, int)
+            or attempt < 1
+        ):
+            raise ValueError(
+                "Job attribution requires valid job_id, "
+                "job_item_id, and a positive integer attempt"
+)
     settings = get_settings()
 
     actual_hash = hashlib.sha256(
@@ -76,6 +98,9 @@ def get_or_create_embedding(
         call_record={
             "tenant_id": key.tenant_id,
             "call_id": call_id,
+            "job_id": job_id,
+            "job_item_id": job_item_id,
+            "attempt": attempt,
             "image_id": (
                 key.source_id
                 if key.source_type == "image"

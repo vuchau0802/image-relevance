@@ -15,7 +15,7 @@ Based on the local command outputs and reviewed calibration labels supplied by t
 - Regression: 10 of 11 cases passed; 9 of 10 matchable posts returned
   the expected image, and the penguin no-match case was correctly rejected.
 - The scooter post is a known false rejection: similarity 0.784260.
-- Latest user-run integration suite: 193 passed, 2 dependency deprecation
+- Latest user-run integration suite: 247 passed, 2 dependency deprecation
   warnings. This documentation update did not rerun the suite.
 - Calibration and regression results are not independent held-out accuracy
   estimates. Full-capstone completion is not claimed.
@@ -513,3 +513,40 @@ rejection of incomplete/unsupported rankings, and inconsistent responses.
 The evaluator does not tune the threshold or make Gemini requests.
 The report is generated output and remains gitignored. These results do
 not establish independent held-out accuracy.
+
+## Persistent embedding jobs and resumable preparation
+
+- Migration 93456560e272 added embedding_jobs and embedding_job_items.
+- Verified idempotent creation of job
+  5cf930d6-f4ff-4c13-813c-09b50c5b2079.
+- All 67 items completed: 50 images and 17 posts.
+- Every item used its cached embedding; zero embedding provider-call
+  records were attributed to this job.
+- Tests cover snapshots, ownership, completion, retries, lease recovery,
+  budget-block release, and job/item/attempt attribution.
+- A database integration test exercised a cache miss using a fake Gemini
+  response, verifying cache persistence, reservation, audit, and completion.
+- The submission seed command returned exit code 0 on the existing demo.
+- Readiness confirmed 50 expected images, 11 original posts, no source
+  issues, and no missing current embeddings.
+- Latest user-run suite: 243 passed, two dependency deprecation warnings,
+  in 4.61 seconds after the submission seed command verification.
+
+The live batch verified cache reuse. Fresh-provider processing and a fresh
+end-to-end preparation run are not claimed from this result. Simultaneous
+embedding workers have not yet been tested.
+
+## Additional hardening
+
+- Subject-guard tests enforce consistent subject/category mappings and
+  reject duplicate normalized aliases.
+- Persistence-failure tests verify that cache-write errors propagate.
+  Provider-call completion and job-item completion have separate meanings.
+- A retry after unsuccessful cache storage requires another reservation
+  and mocked provider request.
+- Four simultaneous claim requests using separate PostgreSQL connections
+  acquired four distinct items and tokens, each with attempts=1.
+- Concurrent claim acquisition is verified. Simultaneous provider requests
+  and complete concurrent worker execution are not established by this test.
+- Latest user-run integration suite: 247 passed, two dependency deprecation
+  warnings, in 4.59 seconds.

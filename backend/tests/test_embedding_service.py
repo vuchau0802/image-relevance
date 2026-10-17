@@ -254,3 +254,112 @@ def test_wrong_input_hash_is_rejected_before_reservation(
 
     ctx.reserve.assert_not_called()
     ctx.client_factory.assert_not_called()
+
+
+def test_embedding_call_records_job_attribution(setup_service):
+    ctx = setup_service
+
+    result = service.get_or_create_embedding(
+        ctx.key,
+        ctx.prepared,
+        job_id="11111111-1111-4111-8111-111111111111",
+        job_item_id="22222222-2222-4222-8222-222222222222",
+        attempt=2,
+    )
+
+    record = ctx.reserve.call_args.kwargs["call_record"]
+
+    assert record["call_id"] == result.call_id
+    assert record["job_id"] == (
+        "11111111-1111-4111-8111-111111111111"
+    )
+    assert record["job_item_id"] == (
+        "22222222-2222-4222-8222-222222222222"
+    )
+    assert record["attempt"] == 2
+
+
+@pytest.mark.parametrize(
+    "attribution",
+    [
+        {"job_id": "job-only"},
+        {
+            "job_id": "job",
+            "job_item_id": "item",
+            "attempt": 0,
+        },
+        {
+            "job_id": "job",
+            "job_item_id": "item",
+            "attempt": True,
+        },
+    ],
+)
+def test_invalid_job_attribution_prevents_request(
+    setup_service, attribution
+):
+    ctx = setup_service
+
+    with pytest.raises(ValueError, match="Job attribution"):
+        service.get_or_create_embedding(
+            ctx.key,
+            ctx.prepared,
+            **attribution,
+        )
+
+    ctx.reserve.assert_not_called()
+    ctx.client_factory.assert_not_called()
+
+def test_cache_write_failure_propagates_after_provider_success(
+    setup_service,
+):
+    ctx = setup_service
+    failure = RuntimeError("Simulated cache write failure")
+    ctx.save.side_effect = failure
+
+    with pytest.raises(RuntimeError) as caught:
+        service.get_or_create_embedding(
+            ctx.key,
+            ctx.prepared,
+        )
+
+    assert caught.value is failure
+    assert ctx.cache == {}
+
+    ctx.reserve.assert_called_once()
+    ctx.client.models.embed_content.assert_called_once()
+    ctx.client.close.assert_called_once()
+
+    # This records provider success, not cache persistence.
+    ctx.finish.assert_called_once()
+    assert ctx.finish.call_args.kwargs["status"] == "completed"
+
+
+def test_retry_after_cache_write_failure_is_another_paid_attempt(
+    setup_service,
+):
+    ctx = setup_service
+    normal_save = ctx.save.side_effect
+    ctx.save.side_effect = RuntimeError("Cache unavailable")
+
+    with pytest.raises(RuntimeError):
+        service.get_or_create_embedding(
+            ctx.key,
+            ctx.prepared,
+        )
+
+    ctx.save.side_effect = normal_save
+
+    result = service.get_or_create_embedding(
+        ctx.key,
+        ctx.prepared,
+    )
+
+    assert result.cache_hit is False
+    assert result.vector == pytest.approx([0.6, 0.8, 0.0])
+
+    # Nothing was cached by the first attempt, so the retry
+    # needs another reservation and provider request.
+    assert ctx.reserve.call_count == 2
+    assert ctx.client.models.embed_content.call_count == 2
+    assert ctx.finish.call_count == 2

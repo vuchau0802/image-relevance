@@ -4,6 +4,7 @@ from app.models.usage import EmbeddingDailyUsage, VisionDailyUsage
 from app.models.ai_call import AICall
 from app.models.post import Post
 from app.models.embedding import ImageEmbedding, PostEmbedding
+from app.models.embedding_job import EmbeddingJob,EmbeddingJobItem
 
 __all__ = [
     "Image",
@@ -15,5 +16,7 @@ __all__ = [
     "Post",
     "ImageEmbedding",
     "PostEmbedding",
-    "EmbeddingDailyUsage"
+    "EmbeddingDailyUsage",
+    "EmbeddingJob",
+    "EmbeddingJobItem"
 ]

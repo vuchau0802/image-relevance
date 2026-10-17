@@ -25,7 +25,7 @@ HTTP, business logic, persistence, and worker entry points are separate.
 The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
 
 Latest user-run verification: the complete isolated-database suite passed all
-193 tests, with two dependency deprecation warnings. Offline runs explicitly
+247 tests, with two dependency deprecation warnings. Offline runs explicitly
 skip database integration tests. Tests make no real Gemini requests.
 
 ## Requirements and installation
@@ -102,9 +102,21 @@ From the root, with the database initialized:
 .\.venv\Scripts\python.exe backend/scripts/seed_demo.py
 ```
 
-This downloads about 161 MB, registers the images, and creates the initial
-demo job. It prints a job ID and makes no Gemini calls. It does not classify
-the corpus. Existing unchanged image registrations are skipped.
+This command starts PostgreSQL, applies migrations, verifies or downloads
+the approximately 161 MB dataset, registers images, and seeds the original
+11 posts. It then processes bounded vision and embedding batches as needed.
+
+Existing classifications and current embeddings are reused. On a fresh
+setup, preparation can make Gemini requests within the configured daily
+allowances. It does not reset quotas or erase previous job history.
+
+Exit code 0 means the expected demo images and posts have current embeddings
+and matching is ready. Exit code 2 means preparation is unfinished. Inspect
+the worker summary before rerunning after retry delays or allowance resets.
+Failed or needs_review images require investigation.
+
+A fresh preparation run has not yet been verified end to end. The verified
+local run reused existing classifications and embeddings.
 
 For individual commands from backend:
 
@@ -147,7 +159,7 @@ From backend, substitute the job ID printed by the creation script:
 ..\.venv\Scripts\python.exe -m app.workers.runner --job-id YOUR_JOB_ID --max-items 3
 ```
 
-The demo creation script uses the fixed initial-image-processing idempotency
+The individual scripts.create_batch_job utility uses the fixed initial-image-processing idempotency
 key. Repeating it returns the same job. The worker stops at its claim limit,
 when nothing is ready, or after an unsuccessful attempt or budget block.
 
@@ -195,6 +207,12 @@ requests are marked interrupted when possible; a hard process kill or failed
 audit finalization leaves a started row for reconciliation. Historical
 data/ai_calls.jsonl remains local and is not automatically imported.
 
+For embeddings, an AI-call status of completed means the provider returned
+a valid vector. It does not guarantee successful cache storage. Cache-write
+failures propagate to the worker; an embedding job item completes only after
+its cache entry exists. If storage failed, a later retry may require another
+reserved provider request. These failure paths are covered by tests.
+
 From the project root, inspect recent records without raw responses/secrets:
 
 ```powershell
@@ -222,6 +240,32 @@ EMBEDDING_DIMENSIONS=768, and EMBEDDING_DAILY_CALL_LIMIT=100. Both source types
 use SEMANTIC_SIMILARITY. Cache keys include the tenant, source, model,
 dimensions, task type, and exact prepared-input hash. Changed source text
 requires a new embedding. Vectors are validated and normalized.
+
+### Persistent embedding batches
+
+From backend:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.create_embedding_job
+..\.venv\Scripts\python.exe -m app.workers.embedding_runner --job-id YOUR_JOB_ID --max-items 10
+```
+
+Job creation snapshots source text and hashes. Repeating the same tenant
+and idempotency key returns the same job. Use a new key for a new source
+snapshot or embedding configuration.
+
+Workers use claim tokens, expiring leases, bounded attempts, retry delays,
+and recovery. Budget blocks restore the unstarted attempt. Cache hits need
+no provider request or reservation.
+
+Check current demo readiness with:
+
+```powershell
+..\.venv\Scripts\python.exe -m scripts.demo_status
+```
+
+Evaluation requires complete current embedding coverage. Incomplete rankings
+stop evaluation rather than being counted as successful rejections.
 
 With current embeddings available:
 
@@ -259,6 +303,18 @@ per-case decisions, returned scores, configuration, and label-file hashes.
 Current results at 0.85 are 6/6 calibration cases and 10/11 regression cases.
 The scooter post is a false rejection: score 0.784260. These small,
 development-influenced sets do not establish independent held-out accuracy.
+
+At the fixed 0.85 threshold:
+
+- Matchable-post retrieval success: 9/10 (90%), counting the scooter
+  abstention as a failure.
+- Accepted top-prediction precision: 9/9 (100%).
+- No-match rejection: 1/1 penguin case correctly rejected.
+- Overall regression cases passed: 10/11 (90.9%).
+
+These metrics use development-influenced regression examples, not an
+independent held-out set. The 9/10 result includes threshold-based
+abstention; it is not an unthresholded ranking-only top-1 score.
 
 ## Tests and CI
 
@@ -306,9 +362,9 @@ needed for tests. See EVIDENCE.md for actual test counts and verification.
   calibration/regression checks are implemented. Review APIs, the frontend,
   authenticated tenant identity, and independent held-out evaluation remain
   outstanding. Subject rules rely on model descriptions and explicit aliases.
-- capstone.yaml lists development endpoints. Its seed command registers images
-  and creates a job; processing, post seeding, and embeddings are separate steps.
-  Final-capstone completion is not claimed.
+- capstone.yaml lists development endpoints. Its seed command delegates to
+  resumable preparation and reports readiness after processing and embedding.
+  Fresh end-to-end preparation and final-capstone completion are not claimed.
 - Current source tracking excludes images, runtime output, secrets, and the
   project brief. Earlier commits and dataset-v1 retain image blobs. History
   was preserved in accordance with the brief; no force-push was performed.

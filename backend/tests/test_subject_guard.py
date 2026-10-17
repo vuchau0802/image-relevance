@@ -133,3 +133,34 @@ def test_extended_subject_guard(
         category=category,
         caption=caption,
     ) is expected
+
+def test_subject_groups_and_categories_stay_consistent():
+    from app.services.subject_guard import (
+        EXPECTED_CATEGORIES,
+        SUBJECT_ALIASES,
+        SUBJECT_GROUPS,
+        normalize_subject,
+    )
+
+    assert set(SUBJECT_GROUPS) == set(EXPECTED_CATEGORIES)
+
+    allowed_categories = {
+        "animal", "vehicle", "food", "landscape"
+    }
+    assert set(EXPECTED_CATEGORIES.values()) <= allowed_categories
+
+    seen_aliases = {}
+
+    for canonical, aliases in SUBJECT_GROUPS.items():
+        assert aliases
+
+        for alias in aliases:
+            normalized = normalize_subject(alias)
+
+            assert normalized
+            assert normalized not in seen_aliases, (
+                f"Duplicate normalized alias: {normalized}"
+            )
+
+            seen_aliases[normalized] = canonical
+            assert SUBJECT_ALIASES[normalized] == canonical
