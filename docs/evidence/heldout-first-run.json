@@ -1,0 +1,485 @@
+{
+  "created_at": "2026-10-18T02:26:26.080480+00:00",
+  "baseline": {
+    "frozen_at_utc": "2026-10-18T02:15:56.7828939Z",
+    "code_commit": "a518b4f82679ff782c55ded4809a7dbe4707e838",
+    "label_file": "data/heldout.json",
+    "label_sha256": "9b0b0f59bcc5faa2d43e5e62becedcc80a87fa2e4e22112a595a99c9b45a2c6e",
+    "embedding_model": "gemini-embedding-001",
+    "dimensions": 768,
+    "task_type": "SEMANTIC_SIMILARITY",
+    "min_match_similarity": 0.85,
+    "cases": 12,
+    "matchable_cases": 8,
+    "no_match_cases": 4,
+    "provenance": "Assistant-authored queries; labels visually reviewed and confirmed by user.",
+    "scope": "New queries against the existing image corpus; not an independent image benchmark."
+  },
+  "source_snapshot_sha256": "db424289899f0465aefb50fd3928d55c963a17a057de8f8161a76f67b0cf4290",
+  "source_snapshots": [
+    {
+      "source_type": "image",
+      "source_id": "img_001",
+      "input_hash": "8cbcd0424bbfc7e24093ed437efc0df632ec00793bcd1149eac50dd17a4626c4"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_002",
+      "input_hash": "454d593672e24975e05384a742f72e1d612cbc76587a98f7be4e4082236f4979"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_003",
+      "input_hash": "6ceb7072371867b86ae3c50a44cddc79ae2eed44cc5a8477cefa0516506fe0dc"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_004",
+      "input_hash": "a264550e66f293f177c1debd86f9e5f90d07e1445e94342c65ebccf3736f8254"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_005",
+      "input_hash": "f79de5e32e6ac5b1371c42555647c8ba9f1878cb76b06ee7ed9f1c5fc90fcef2"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_006",
+      "input_hash": "cb7d8a0d68cdb887e9b60a21955746d8200347aff93275cbed07a8c4ac40ca52"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_007",
+      "input_hash": "8e6363a86dd67f3281aca61a3cb14c9375ac1a93868e9ae0fe2872de8791703f"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_008",
+      "input_hash": "2b5af90fae20fba3f44b8f900a13cd3c4425d90dd9af7526b60ed5ece7a143c7"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_009",
+      "input_hash": "ce025c5c938cefe830065607ba7ab60c535392844893407b309b8334e3cfda72"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_010",
+      "input_hash": "f62139de4cd6ce69ca562aa7bf4ce5665e93935263e48bc4e49b799fdea4f396"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_011",
+      "input_hash": "485a41593df28d5bdfe192987ecd99e8bb7fd90d6269d5e72ca6f34d381f55fb"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_012",
+      "input_hash": "a49a77108e265088887a00e35255e571cec1cb1b634b8ea5d9bc3b96404c85d9"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_013",
+      "input_hash": "37ae4c97e75442d6c07b8d20f3b684824e4dee67d53018d34809e4e8156a79aa"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_014",
+      "input_hash": "d23d7c5e748bb51679c647ecd8942314e5408510a13ecbb2b8fe6b1a41b44db7"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_015",
+      "input_hash": "8b97d62218a457a3d3ca2c55bc1957e428751f71a461ddb04607706fd192e3dc"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_016",
+      "input_hash": "7093b46ad47c4ced58e0c4484432f36788c9329825a1f2fcdbe2a406f978bac8"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_017",
+      "input_hash": "5047b8924bc0196cd1f605c60b08a73851d751e180693005b4057e8a27556c46"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_018",
+      "input_hash": "1d4725ecdac009bffca33d81195b3838353b756c0a1b56e2b359b92377767e7b"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_019",
+      "input_hash": "4ce862f9eb16b8416edcaeacaf583b2d7b2b330357188d6173e18688ad91ae72"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_020",
+      "input_hash": "bef15fe3404524daefb1f2211b30703a3b0d2c6f4fe15ed7feb7f8127d0fdf60"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_021",
+      "input_hash": "e0e60e266a84110ff81dc57b415ba1fa1147d99be6217e418b30bc749932ae29"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_022",
+      "input_hash": "8c1486fff91a0c8dcd194628958d228d3b996adf47b72261734dfa04fcc19d2a"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_023",
+      "input_hash": "92fe879d91cc793ab3902dee1b26ad94a56d4be28f734d9112c65a991339c110"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_024",
+      "input_hash": "ce62b12303ebcb5598e0de1dc7af5212bb221567b80c3bab4b89956a15453274"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_025",
+      "input_hash": "511f78f07fe44fd658c38a8d0ff1654dbe4283b4248f69118260700c394f75f2"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_026",
+      "input_hash": "923a0f088906f0d0276820fab94a4357fa6642f58498ace9651d9547795dbba1"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_027",
+      "input_hash": "24cf9db73ef13cf4b91c38d30ad0591f31a9d2f019f18cf712a4f131217851a4"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_028",
+      "input_hash": "41650994428094ba256c9996004b1010e010376e2aef93af7cab1f8907f5c2be"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_029",
+      "input_hash": "dae7a983e79307a4b236c88e30292adb182fd917c6c84fc989d2f98e1da4991b"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_030",
+      "input_hash": "ac3924906eb25627b5c5e09f127da576fa5e82d4142fdda903c0583415d9dd35"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_031",
+      "input_hash": "b21bb8a226ffdc59f896c0b9ca5a8eff018df9d03a87934923bd186af76f4e42"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_032",
+      "input_hash": "f134ab759f03ce1abde828ff7af5cd2403d7d99fbe83c08a7a5000dc7fd1072d"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_033",
+      "input_hash": "fb4a18d3bc05af873987a2b23584443c0138613ac4c8af2f013c338727aeb562"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_034",
+      "input_hash": "293cab2963b38a714e966102f25d6ed8959dfa5cbe6fe2c3af8dd614db81dc07"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_035",
+      "input_hash": "13451bb7aa8c0ee5c65edf7de653c000da9e50335b591a96358b00179df3b08d"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_036",
+      "input_hash": "5e2b0f3286450bcf64ce1ec39510d656f3c3ed263d03002a073cd0de2e8f50aa"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_037",
+      "input_hash": "99f12bf75b5d840b5d5053cce5e51309363225b496c709d3d82c9315d3cc8ed8"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_038",
+      "input_hash": "efb1fdb8fee494222df71f8a1e34c23eb1858ec4d446388902c62282c544f1ba"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_039",
+      "input_hash": "0522d3e8ff4fa2e00499af86e1ebb8d62fda6a87d62c79b680dd5c5ee2f13ab4"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_040",
+      "input_hash": "164732e82472e5a244f97f7f596680fa32eb87c61993315aa291f87ce4984bdf"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_041",
+      "input_hash": "f0e02b25adbff4939dd88839b089e2b30d57431b3a0f9932d9d3627476bcfab6"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_042",
+      "input_hash": "43842c677ec14a199211836915786619261cfc6ef9afb09c73420664fca43b09"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_043",
+      "input_hash": "f731bec7d2aef807bcc767f44dbca82f295604c6917e79f5ed1e72268a25861f"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_044",
+      "input_hash": "76f25fe992bdf931969e537c48c84500d9b2d047a38fce03062866c166040bfd"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_045",
+      "input_hash": "8d15ce64a9e098b36907a4b338551f679d00411ffb5a642e97976866e5e36bac"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_046",
+      "input_hash": "9b07e3aead05dd3f83cd4e1f35c6ec796abf3e1dcc4aa722b1aeb01d2fd1fe77"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_047",
+      "input_hash": "1e0fcd00861ca210802e4700aaf96bc5c3df92bb95222d04c963754a4c0793c4"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_048",
+      "input_hash": "a89c0b55b9127dc4756ddae84c698ae7cef3578109467d27ad32c493a5ccedcd"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_049",
+      "input_hash": "686f22e948283b430c97f13f4a4ea35ae8305314e971408ccc904fb612b7009a"
+    },
+    {
+      "source_type": "image",
+      "source_id": "img_050",
+      "input_hash": "7e926eb6365897e228b91b0b1c3be65e3b1aa11f620c4d9712c3c20932373ef5"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_001",
+      "input_hash": "ffd130cd6cdce20057914a5d4d4d1051114e368940579f9c8a64eedaa1fc11bd"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_002",
+      "input_hash": "87d5b5da45a5c6a46b66ec54a97280f7516218b8bb2ea72f79d53ef05a1c8ac6"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_003",
+      "input_hash": "31f00c68417b8e8d338e2142b7422769daecb83b1c798613ba7d2b9cabc408bf"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_004",
+      "input_hash": "d2d49b5a2fe4d2258c8c89744333df7e80d05eb1438f44295f3ac1977bf8a9fc"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_005",
+      "input_hash": "ccbaebeb8c29bc4e140ec6cf9f979f03c1ffa6e6ae04349ab6847a29e5764382"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_006",
+      "input_hash": "c53596d0964f317be152c0f5fcffdb2990b5d1a33c9f38e67b4ddf110a769ab5"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_007",
+      "input_hash": "6b7385d768e0b727b586a05f8cd9207727f5c18e1d4657d9e37504d76cbf84b3"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_008",
+      "input_hash": "9e08d541f91770d628e03ecc615ce1feb8ec6e1e0b7a6af998ebc09e08db025c"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_009",
+      "input_hash": "fe213b8b03ebfc24f8ae2e7aca15a4baae952a269d6a1cb972994ea99a0528b1"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_010",
+      "input_hash": "c1abcb624b22d7eeac9e335b7153dec054049377cffe5cac84b59e829b79e58f"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_011",
+      "input_hash": "061f47c64d731c7622117867d468f27708c56f4883c25ea5c42091c692d81d1e"
+    },
+    {
+      "source_type": "post",
+      "source_id": "eval_012",
+      "input_hash": "92d29f7911d6cf9365945dc1ba51e76b7f59dc05cd060cffa1aeedff8517dc15"
+    }
+  ],
+  "limitation": "Assistant-authored new queries, user-reviewed labels, and the existing development corpus. Not an independently authored benchmark.",
+  "evaluation": {
+    "total": 12,
+    "passed": 9,
+    "matchable_cases": 8,
+    "correct_top_matches": 6,
+    "no_match_cases": 4,
+    "correct_rejections": 3,
+    "accepted_predictions": 7,
+    "incorrect_acceptances": 1,
+    "false_rejections": 2,
+    "accepted_top_precision": 0.8571428571428571,
+    "rows": [
+      {
+        "post_id": "eval_001",
+        "acceptable_image_ids": [
+          "img_005"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_005",
+        "similarity": 0.8746207032804317,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_002",
+        "acceptable_image_ids": [
+          "img_009"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_009",
+        "similarity": 0.9208877598493942,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_003",
+        "acceptable_image_ids": [
+          "img_013"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_013",
+        "similarity": 0.8593742997895285,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_004",
+        "acceptable_image_ids": [
+          "img_020"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_020",
+        "similarity": 0.9278689028870154,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_005",
+        "acceptable_image_ids": [
+          "img_022"
+        ],
+        "expected_status": "matched",
+        "actual_status": "no_confident_match",
+        "actual_image_id": null,
+        "similarity": null,
+        "reason": "Subject-compatible images were found, but none met the similarity threshold.",
+        "passed": false
+      },
+      {
+        "post_id": "eval_006",
+        "acceptable_image_ids": [
+          "img_024"
+        ],
+        "expected_status": "matched",
+        "actual_status": "no_confident_match",
+        "actual_image_id": null,
+        "similarity": null,
+        "reason": "Subject-compatible images were found, but none met the similarity threshold.",
+        "passed": false
+      },
+      {
+        "post_id": "eval_007",
+        "acceptable_image_ids": [
+          "img_034"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_034",
+        "similarity": 0.8667253852276455,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_008",
+        "acceptable_image_ids": [
+          "img_050"
+        ],
+        "expected_status": "matched",
+        "actual_status": "matched",
+        "actual_image_id": "img_050",
+        "similarity": 0.863842891395216,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_009",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "actual_status": "matched",
+        "actual_image_id": "img_002",
+        "similarity": 0.8526444045396087,
+        "reason": "Images passed the subject guard and similarity threshold.",
+        "passed": false
+      },
+      {
+        "post_id": "eval_010",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "actual_status": "no_confident_match",
+        "actual_image_id": null,
+        "similarity": null,
+        "reason": "Subject-compatible images were found, but none met the similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_011",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "actual_status": "no_confident_match",
+        "actual_image_id": null,
+        "similarity": null,
+        "reason": "Subject-compatible images were found, but none met the similarity threshold.",
+        "passed": true
+      },
+      {
+        "post_id": "eval_012",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "actual_status": "no_confident_match",
+        "actual_image_id": null,
+        "similarity": null,
+        "reason": "Subject-compatible images were found, but none met the similarity threshold.",
+        "passed": true
+      }
+    ],
+    "top1_match_rate": 0.75,
+    "coverage": 0.5833333333333334,
+    "correct_no_match_rejection_rate": 0.75
+  }
+}

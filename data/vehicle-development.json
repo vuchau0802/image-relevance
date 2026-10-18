@@ -1,0 +1,81 @@
+[{
+        "id": "veh_001",
+        "title": "A turquoise Beetle at the curb",
+        "content": "Show a turquoise Volkswagen Beetle parked beside a street curb.",
+        "required_subject": "Volkswagen Beetle",
+        "acceptable_image_ids": ["img_022"],
+        "expected_status": "match",
+        "label_reason": "img_022 shows a turquoise Volkswagen Beetle in side profile beside a curb.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_002",
+        "title": "The rounded roofline of a classic Beetle",
+        "content": "Illustrate the rounded roofline of a classic Volkswagen Beetle using a side-view photograph.",
+        "required_subject": "Volkswagen Beetle",
+        "acceptable_image_ids": ["img_022"],
+        "expected_status": "match",
+        "label_reason": "img_022 clearly shows the Beetle's curved roofline and rounded fenders in side profile.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_003",
+        "title": "An unoccupied white scooter",
+        "content": "Show an unoccupied white vintage motor scooter parked on pavement.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": ["img_024"],
+        "expected_status": "match",
+        "label_reason": "img_024 shows a white Vespa scooter standing on paving with no rider or passenger.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_004",
+        "title": "Scooter details without an obstructing rider",
+        "content": "Illustrate a motor scooter's seat, headlight, and chrome details without a rider obscuring them.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": ["img_024"],
+        "expected_status": "match",
+        "label_reason": "img_024 visibly includes the black seat, rectangular headlight, and reflective metal trim and mirror without a person covering them.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_005",
+        "title": "A red Beetle at night",
+        "content": "Show a red Volkswagen Beetle parked on a city street at night.",
+        "required_subject": "Volkswagen Beetle",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "The visible Beetle in img_022 is turquoise. img_028 shows a red boxy four-door sedan rather than a Beetle. Corpus overview review found no red Beetle matching the query.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_006",
+        "title": "A Beetle driving through snow",
+        "content": "Show a Volkswagen Beetle being driven through deep snow.",
+        "required_subject": "Volkswagen Beetle",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "img_022 shows the Beetle beside a curb on exposed pavement without snow. Corpus overview review found no Beetle driving through snow.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_007",
+        "title": "A helmeted scooter rider",
+        "content": "Show a helmeted person riding a motor scooter along a street.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "img_024 shows an unoccupied parked scooter. Corpus overview review found no photograph clearly showing a helmeted scooter rider meeting the brief; the main vehicle in img_023 is a three-wheeled tuk-tuk.",
+        "reviewed": true
+    },
+    {
+        "id": "veh_008",
+        "title": "A scooter passenger in heavy rain",
+        "content": "Show a motor scooter carrying a passenger through heavy rain.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "img_024 has neither a rider nor a passenger and does not visibly show heavy rainfall. Corpus overview review found no photograph meeting all requested conditions.",
+        "reviewed": true
+    }
+]

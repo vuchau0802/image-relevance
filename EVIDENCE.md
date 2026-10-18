@@ -8,21 +8,24 @@ Based on the local command outputs and reviewed calibration labels supplied by t
 
 - All 50 demo images are completed, with 50 metadata records.
 - Stored 768-dimensional gemini-embedding-001 embeddings for 50 images,
-  11 original posts, and six calibration posts.
+  11 original posts, six calibration posts, 12 evaluation posts, and eight
+  vehicle development posts.
 - Ranking uses tenant-scoped current embeddings, cosine similarity,
   explicit subject rules, and a fixed acceptance threshold of 0.85.
 - Calibration: 6 of 6 reviewed cases passed.
 - Regression: 10 of 11 cases passed; 9 of 10 matchable posts returned
   the expected image, and the penguin no-match case was correctly rejected.
 - The scooter post is a known false rejection: similarity 0.784260.
-- Latest verified integration suite: 250 passed, 2 dependency deprecation
-  warnings, agent-run against the isolated test database. The earlier latest
-  user-run result was 247 passed.
+- Frozen new-query evaluation: 9/12 cases passed; correct accepted top
+  matches 6/8, accepted precision 6/7, coverage 7/12, correct no-match
+  rejections 3/4. The two false rejections and one false acceptance remain.
+- Latest user-run integration suite: 302 passed, 2 dependency deprecation
+  warnings, in 8.89 seconds against the isolated test database.
 - Calibration and regression results are not independent held-out accuracy
   estimates. Full-capstone completion is not claimed.
 
-Earlier sections preserve historical results; the Phase 3 section below
-records the latest retrieval evidence and limitations.
+Earlier sections preserve historical results. Later evaluation and
+development-pilot sections record the current evidence and limitations.
 
 ## Phase 1: dataset and evaluation references
 
@@ -553,7 +556,7 @@ later claim-acquisition test is documented below.
   distinct ownership under contention, not parallel claim throughput.
 - Concurrent claim acquisition is verified. Simultaneous provider requests
   and complete concurrent worker execution are not established by this test.
-- Latest user-run integration suite: 247 passed, two dependency deprecation
+- Earlier user-run integration checkpoint: 247 passed, two dependency deprecation
   warnings, in 4.59 seconds.
 
 ## Fresh preparation integration verification
@@ -585,3 +588,70 @@ The existing demo database was not used or changed by these tests. Full-corpus
 preparation against the live provider remains unverified. This verification
 does not establish general matching accuracy or remove corpus-specific guard
 limitations.
+
+## Phase 4 frozen evaluation and final checks
+
+The user verified the frozen label hash, implementation baseline, settings,
+and stored post text, then ran scripts.evaluate_heldout for the first time.
+At the unchanged 0.85 threshold, 9/12 cases passed: 6/8 correct accepted top
+matches, 6/7 accepted precision, 7/12 coverage, and 3/4 correct no-match
+rejections. eval_005 and eval_006 were threshold-based false rejections;
+eval_009 accepted img_002 at 0.8526444045396087 despite the absent snowy setting.
+
+The first report was copied to docs/evidence/heldout-first-run.json. Matching
+SHA-256 hashes were supplied by the user for this copy and the generated
+report. The original baseline and first-run report remain unchanged.
+A separate context-aware development pilot was subsequently added using
+inspected failures. Those cases now inform development and do not support
+a new held-out accuracy claim. The original ranker and threshold remain
+unchanged.
+
+The audit snapshot contained 79 completed embedding calls, including 12
+for evaluation posts, with unknown token usage and a USD 0 configured
+free-tier estimate. The user supplied Free tier evidence from AI Studio;
+provider billing was not independently verified. No vision rows appeared
+in that audit query, so total historical vision cost is not established.
+
+Earlier first-run checkpoint: pip check clean; alembic check found no new upgrade
+operations; integration suite 261 passed, two dependency warnings, in 7.28
+seconds; readiness true for 50 images and 11 original posts, with no gaps.
+See docs/phase4-results.md for metric denominators, provenance, report hash,
+error analysis, official pricing/quota references, and remaining limitations.
+
+## Context-aware development pilot
+
+- Imported reviewed requirements for 3 posts and scene evidence for
+  7 images. Repeated import created no duplicate records.
+- The separate pilot command rejected eval_009 because all
+  threshold-passing fox candidates had reviewed evidence of no snow.
+- eval_005 and eval_006 remained rejected below the unchanged
+  similarity threshold of 0.85.
+- Original ranking behavior and the frozen first-run report were preserved.
+- User-run verification: 9 pilot tests passed; the full isolated
+  database suite passed 302 tests with 2 dependency deprecation warnings.
+- These inspected cases are development cases, not a new held-out benchmark.
+
+### Vehicle query development check
+
+Eight reviewed vehicle development queries passed at the unchanged
+0.85 threshold: four correct matches and four correct rejections.
+
+The original Beetle and scooter false rejections remain unresolved.
+Their scores were 0.823373 and 0.845849. More visually specific
+development queries scored above the threshold.
+
+These queries were authored after corpus inspection. Their results
+suggest sensitivity to query wording but do not establish its cause
+or demonstrate performance on unseen queries.
+
+The original held-out report and labels remain unchanged.
+## Latest final verification checkpoint
+
+- User-run isolated suite: 302 passed, two dependency deprecation warnings,
+  in 8.89 seconds. pip check and alembic check were clean.
+- Demo readiness remained true for 50 images and 11 original posts,
+  with no source issues or missing current embeddings.
+- The preserved first-run SHA-256 was rechecked and remained
+  `59b59fb4128993645af416bcdbba4ef2e2517a5bd1160fca36cb548ef48c1606`.
+- Vehicle development results are saved in
+  docs/evidence/vehicle-development-baseline.json (8/8 at 0.85).

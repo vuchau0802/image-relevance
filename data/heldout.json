@@ -1,0 +1,121 @@
+[{
+        "id": "eval_001",
+        "title": "Quiet moments in a fox's routine",
+        "content": "An article explains how red foxes groom themselves. Choose a photograph that visibly shows a fox scratching its own body.",
+        "required_subject": "red fox",
+        "acceptable_image_ids": ["img_005"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_005 shows a fox scratching itself on a deck. The other fox photographs do not show this activity. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_002",
+        "title": "A young wolf beside an adult",
+        "content": "The story is about gray wolf pups interacting closely with adults. The illustration must include both a young wolf and an adult together.",
+        "required_subject": "gray wolf",
+        "acceptable_image_ids": ["img_009"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_009 contains an adult wolf and a pup together. img_002 shows foxes, so it is not an acceptable substitute. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_003",
+        "title": "Taking a whole group of dogs outdoors",
+        "content": "This feature discusses photographing several domestic dogs together during an outdoor outing. The illustration should contain multiple dogs in the same scene, rather than a single pet portrait.",
+        "required_subject": "dog",
+        "acceptable_image_ids": ["img_013"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_013 contains several domestic dogs around a log. The other dog photographs each show one dog. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_004",
+        "title": "A brown bear crossing a stream",
+        "content": "A wildlife feature follows a brown bear moving through shallow water. The picture must show the bear in the stream; a bear standing on dry ground does not meet the illustration brief.",
+        "required_subject": "brown bear",
+        "acceptable_image_ids": ["img_020"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_020 shows a brown bear among rocks in a shallow stream. The other bear photographs do not show this water-crossing scene. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_005",
+        "title": "An icon with rounded bodywork",
+        "content": "A design essay examines the Volkswagen Beetle's distinctive curved body. Use a photograph of an actual Beetle; a generic vintage sedan is not a substitute.",
+        "required_subject": "Volkswagen Beetle",
+        "acceptable_image_ids": ["img_022"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_022 shows a Volkswagen Beetle. The red sedan in img_028 and the other vehicles do not match the requested vehicle type. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_006",
+        "title": "Scooter design on display",
+        "content": "This feature considers the shape and construction of motor scooters. The photograph should show a parked scooter clearly enough to inspect the vehicle, with no rider covering it.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": ["img_024"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_024 clearly shows a parked motor scooter without a rider. No other vehicle photograph shows a motor scooter meeting the brief. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_007",
+        "title": "Pizza as part of a shared dinner",
+        "content": "A food feature presents pizza as one part of a mixed meal. The image should include a pizza together with separate dishes, rather than showing pizza alone.",
+        "required_subject": "pizza",
+        "acceptable_image_ids": ["img_034"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: img_034 shows pizza alongside separate plated dishes. img_032 shows pizza without the requested mixed-meal setting. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_008",
+        "title": "Reading a valley shaped by rock and water",
+        "content": "A travel feature explores how Yosemite's waterfalls sit within its broader granite landscape. The photograph must include a visible waterfall and surrounding cliffs, not simply an unidentified mountain or lake.",
+        "required_subject": "Yosemite waterfall",
+        "acceptable_image_ids": ["img_050"],
+        "expected_status": "match",
+        "label_reason": "Assistant visual review: full-image inspection of img_050 shows the Yosemite valley landscape with granite cliffs and a waterfall on the right. Other landscape photographs do not show the required combination. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_009",
+        "title": "Foxes beneath fresh snow",
+        "content": "A wildlife article describes a red fox travelling through a snow-covered landscape. Snow around the animal is an essential part of the requested illustration.",
+        "required_subject": "red fox",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "Assistant visual review of the corpus: none of the fox photographs shows a snow-covered setting. Snow in unrelated landscape photographs cannot satisfy the fox requirement. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_010",
+        "title": "A wolf swimming across a river",
+        "content": "An article examines gray wolves crossing waterways. Its illustration must show a gray wolf actively swimming, with the animal visibly in the water.",
+        "required_subject": "gray wolf",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "Assistant visual review of the corpus: the wolf photographs show animals on land. The bear in water is a different subject and is not acceptable. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_011",
+        "title": "Protective helmets during a scooter journey",
+        "content": "A road-safety feature focuses on a helmeted person actively riding a motor scooter. Both the rider and helmet must be visible; an unattended parked scooter does not illustrate this scene.",
+        "required_subject": "motor scooter",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "Assistant visual review of the corpus: img_024 has no rider or helmet. The tuk-tuk and other vehicle photographs do not show a helmeted motor-scooter rider. Proposed label awaits user confirmation.",
+        "reviewed": true
+    },
+    {
+        "id": "eval_012",
+        "title": "Putting a pizza into a wood-fired oven",
+        "content": "An article follows the cooking stage of pizza making. The requested photograph must show a pizza being placed into, or cooking inside, a wood-fired oven with the oven visible.",
+        "required_subject": "pizza",
+        "acceptable_image_ids": [],
+        "expected_status": "no_confident_match",
+        "label_reason": "Assistant visual review of the corpus: the pizza photographs show served food, and none shows pizza in or entering a visible wood-fired oven. Proposed label awaits user confirmation.",
+        "reviewed": true
+    }
+]

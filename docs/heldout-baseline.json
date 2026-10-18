@@ -1,0 +1,15 @@
+﻿{
+    "frozen_at_utc":  "2026-10-18T02:15:56.7828939Z",
+    "code_commit":  "a518b4f82679ff782c55ded4809a7dbe4707e838",
+    "label_file":  "data/heldout.json",
+    "label_sha256":  "9b0b0f59bcc5faa2d43e5e62becedcc80a87fa2e4e22112a595a99c9b45a2c6e",
+    "embedding_model":  "gemini-embedding-001",
+    "dimensions":  768,
+    "task_type":  "SEMANTIC_SIMILARITY",
+    "min_match_similarity":  0.85,
+    "cases":  12,
+    "matchable_cases":  8,
+    "no_match_cases":  4,
+    "provenance":  "Assistant-authored queries; labels visually reviewed and confirmed by user.",
+    "scope":  "New queries against the existing image corpus; not an independent image benchmark."
+}

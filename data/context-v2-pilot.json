@@ -1,0 +1,254 @@
+{
+    "version": "manual-v2-pilot",
+    "purpose": "Development pilot using previously inspected failures; not held-out evaluation.",
+    "posts": [{
+            "post_id": "eval_005",
+            "input_hash": "ccbaebeb8c29bc4e140ec6cf9f979f03c1ffa6e6ae04349ab6847a29e5764382",
+            "requirements": {
+                "requirements": [{
+                    "feature": "curved_body",
+                    "expected": "present"
+                }]
+            },
+            "reviewed": true
+        },
+        {
+            "post_id": "eval_006",
+            "input_hash": "c53596d0964f317be152c0f5fcffdb2990b5d1a33c9f38e67b4ddf110a769ab5",
+            "requirements": {
+                "requirements": [{
+                        "feature": "parked",
+                        "expected": "present"
+                    },
+                    {
+                        "feature": "rider",
+                        "expected": "absent"
+                    }
+                ]
+            },
+            "reviewed": true
+        },
+        {
+            "post_id": "eval_009",
+            "input_hash": "fe213b8b03ebfc24f8ae2e7aca15a4baae952a269d6a1cb972994ea99a0528b1",
+            "requirements": {
+                "requirements": [{
+                    "feature": "snow",
+                    "expected": "present"
+                }]
+            },
+            "reviewed": true
+        }
+    ],
+    "images": [{
+            "image_id": "img_001",
+            "image_checksum": "9fdb825db5bba54344fea83ae98c49f43bab4f19877f76c6bafc8dd58a800e56",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The fox stands on exposed asphalt; no snow is visible in the photographed scene."
+                },
+                {
+                    "feature": "parked",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Parking is a vehicle feature and is not applicable to the main animal subject."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The pilot rider feature refers to a person using the main vehicle; the main subject here is an animal."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "This feature describes vehicle bodywork and is not applicable to the main animal subject."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_002",
+            "image_checksum": "e895630ea89a0957b23b90588860f193d31e16f1471e5deb301d02b735e8764f",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The two foxes are shown against a green outdoor background; no snow is visible in the frame."
+                },
+                {
+                    "feature": "parked",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Parking is a vehicle feature and is not applicable to the main animal subject."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The pilot rider feature refers to a person using the main vehicle; the main subject here is an animal."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "This feature describes vehicle bodywork and is not applicable to the main animal subject."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_003",
+            "image_checksum": "13c858c17e117463120101d1072539bab589554a99106fc938ee21c8c33a383d",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The fox sits on green grass; no snow is visible in the photographed scene."
+                },
+                {
+                    "feature": "parked",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Parking is a vehicle feature and is not applicable to the main animal subject."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The pilot rider feature refers to a person using the main vehicle; the main subject here is an animal."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "This feature describes vehicle bodywork and is not applicable to the main animal subject."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_004",
+            "image_checksum": "d038d8f5faece6e266fbaf314f56e2be3977cdf708d7553b569487dd84b83722",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "This close view of a fox and its dark background contains no visible snow; ground outside the frame is not assessed."
+                },
+                {
+                    "feature": "parked",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Parking is a vehicle feature and is not applicable to the main animal subject."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The pilot rider feature refers to a person using the main vehicle; the main subject here is an animal."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "This feature describes vehicle bodywork and is not applicable to the main animal subject."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_005",
+            "image_checksum": "bfa351f379b099010e17c981f0c50a7b437c80199adba34ead31c80608332934",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The fox sits on a wooden deck with scattered plant material; no snow is visible in the frame."
+                },
+                {
+                    "feature": "parked",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Parking is a vehicle feature and is not applicable to the main animal subject."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The pilot rider feature refers to a person using the main vehicle; the main subject here is an animal."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "This feature describes vehicle bodywork and is not applicable to the main animal subject."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_022",
+            "image_checksum": "1fd97a8719ded31baf9bd5b313086b290252281d276953b202c2102757077426",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The car, curb, and exposed street are visible without snow."
+                },
+                {
+                    "feature": "parked",
+                    "state": "present",
+                    "source": "manual_review",
+                    "explanation": "The Beetle appears parked parallel to a curb, with its side profile unobstructed."
+                },
+                {
+                    "feature": "rider",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "Rider or occupant status was not assessed for this enclosed car."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "present",
+                    "source": "manual_review",
+                    "explanation": "The Beetle has visibly rounded bodywork, including a curved roof and rounded fenders."
+                }
+            ],
+            "reviewed": true
+        },
+        {
+            "image_id": "img_024",
+            "image_checksum": "9e72002dccddc4072b297d33ad0044211998f4b73c11d427e122c1277c587a63",
+            "facts": [{
+                    "feature": "snow",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The scooter stands on exposed paving beside a wall; no snow is visible."
+                },
+                {
+                    "feature": "parked",
+                    "state": "present",
+                    "source": "manual_review",
+                    "explanation": "The unoccupied scooter stands on paved ground beside a wall."
+                },
+                {
+                    "feature": "rider",
+                    "state": "absent",
+                    "source": "manual_review",
+                    "explanation": "The scooter seat and vehicle are visible without a person riding or sitting on them."
+                },
+                {
+                    "feature": "curved_body",
+                    "state": "unknown",
+                    "source": "manual_review",
+                    "explanation": "The rounded vehicle-body feature was not assessed for this scooter."
+                }
+            ],
+            "reviewed": true
+        }
+    ]
+}

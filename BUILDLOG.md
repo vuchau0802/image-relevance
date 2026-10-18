@@ -112,3 +112,41 @@ At that earlier checkpoint, the corpus processing job was unfinished.
   original/reprocessing job history, and 50-image corpus classifications.
 - Two dependency deprecation warnings remain; dependencies were not upgraded
   merely to suppress warnings. Final matching acceptance probes remain pending.
+
+## Phase 4 evaluation and hardening
+
+- Used AI assistance for the frozen-baseline loader, evaluation runner,
+  synthetic tests, analysis, and documentation. The user edited files,
+  ran PowerShell verification, and confirmed the labels by visual review.
+- The assistant drafted 12 new queries and proposed labels after inspecting
+  the existing corpus, without viewing those queries' ranking scores.
+  This provenance is recorded; the set is not an independent benchmark.
+- Froze labels, baseline implementation, embedding settings, and threshold
+  0.85 before evaluation. Seeded and embedded only post text, excluding labels.
+- The user ran the first evaluation: 9/12 cases passed. Kept both false
+  rejections and the snowy-fox false acceptance in the preserved baseline report.
+- Preserved the first JSON report and verified its hash against the original.
+- Reviewed a 79-call embedding audit snapshot and the user's Free tier
+  evidence. Kept unavailable token usage as unknown and distinguished the
+  application's USD 0 estimate from actual provider billing.
+- Earlier first-run checkpoint: 261 passed, two dependency warnings, in 7.28 seconds.
+  Dependency consistency, migration agreement, and demo readiness passed.
+- No final Phase 4 commit was created by the assistant. The user requested
+  completion of the work before committing.
+
+### Subsequent development pilot and verification
+
+- Added versioned post requirements and image scene evidence, reviewed
+  imports, and a separate context pilot command with AI assistance.
+- The pilot rejected the snowy-fox mismatch. The original Beetle and
+  scooter false rejections remain unresolved at threshold 0.85.
+- Added eight vehicle development queries after corpus inspection; the
+  user confirmed the labels and obtained 8/8 with the original ranker.
+- Direct inspection established that img_028 is a boxy four-door sedan;
+  an initially accepted Beetle correction was withdrawn before any
+  classification or embedding change.
+- Original baseline and first-run evidence were preserved. Inspected
+  failures now inform development, not a new held-out accuracy claim.
+- Latest user-run suite: 302 passed, two dependency warnings, in 8.89
+  seconds. Dependency consistency, migration agreement, demo readiness,
+  and the preserved report hash were verified by the user.

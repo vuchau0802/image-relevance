@@ -1,0 +1,76 @@
+﻿{
+    "scope":  "Development queries against the existing corpus; not held-out evaluation.",
+    "recorded_at_utc":  "2026-10-18T03:20:40.2241626Z",
+    "model":  "gemini-embedding-001",
+    "dimensions":  768,
+    "threshold":  0.85,
+    "label_sha256":  "7bcdfc33e01a8a908ac113f0332e88b6cca32eb37e0d12fe8775c8dd52dfbd36",
+    "passed":  8,
+    "total":  8,
+    "rows":  [
+                 {
+                     "Post":  "veh_001",
+                     "Expected":  "match",
+                     "Actual":  "matched",
+                     "Image":  "img_022",
+                     "Score":  0.9430721208930545,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_002",
+                     "Expected":  "match",
+                     "Actual":  "matched",
+                     "Image":  "img_022",
+                     "Score":  0.8678790902538951,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_003",
+                     "Expected":  "match",
+                     "Actual":  "matched",
+                     "Image":  "img_024",
+                     "Score":  0.9347054223836028,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_004",
+                     "Expected":  "match",
+                     "Actual":  "matched",
+                     "Image":  "img_024",
+                     "Score":  0.8626935722636172,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_005",
+                     "Expected":  "no_confident_match",
+                     "Actual":  "no_confident_match",
+                     "Image":  null,
+                     "Score":  null,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_006",
+                     "Expected":  "no_confident_match",
+                     "Actual":  "no_confident_match",
+                     "Image":  null,
+                     "Score":  null,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_007",
+                     "Expected":  "no_confident_match",
+                     "Actual":  "no_confident_match",
+                     "Image":  null,
+                     "Score":  null,
+                     "Passed":  true
+                 },
+                 {
+                     "Post":  "veh_008",
+                     "Expected":  "no_confident_match",
+                     "Actual":  "no_confident_match",
+                     "Image":  null,
+                     "Score":  null,
+                     "Passed":  true
+                 }
+             ]
+}

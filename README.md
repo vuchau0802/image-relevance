@@ -24,8 +24,8 @@ FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
 HTTP, business logic, persistence, and worker entry points are separate.
 The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
 
-Latest verified integration suite: the agent-run isolated-database suite passed
-250 tests, with two dependency deprecation warnings. Offline runs explicitly
+Latest user-run verification: the isolated-database suite passed all
+302 tests in 8.89 seconds, with two dependency deprecation warnings. Offline runs explicitly
 skip database integration tests. Tests make no real Gemini requests.
 
 ## Requirements and installation
@@ -318,6 +318,32 @@ At the fixed 0.85 threshold:
 These metrics use development-influenced regression examples, not an
 independent held-out set. The 9/10 result includes threshold-based
 abstention; it is not an unthresholded ranking-only top-1 score.
+
+## Phase 4 evaluation results
+
+With the baseline and 0.85 threshold frozen, 12 assistant-authored new
+queries with user-reviewed labels produced:
+
+- Correct accepted top matches: 6/8 matchable posts (75%).
+- Accepted top-prediction precision: 6/7 (85.7%).
+- Coverage: 7/12 posts (58.3%).
+- Correct no-match rejection: 3/4 (75%).
+- Overall cases passed: 9/12 (75%).
+
+The Beetle and scooter cases were false rejections. A snowy-fox case
+incorrectly accepted a fox photograph without snow. These failures remain
+in the unchanged first-run report. A separate context-aware development
+pilot was subsequently added using inspected failures. Those cases now
+inform development and do not support a new held-out accuracy claim.
+The original ranker and 0.85 threshold remain unchanged.
+This is a new-query evaluation on the existing corpus, not an independent
+benchmark. Earlier calibration and regression figures are separate.
+
+See [the full results and cost limitations](docs/phase4-results.md),
+[the frozen baseline](docs/heldout-baseline.json), and
+[the preserved first-run report](docs/evidence/heldout-first-run.json).
+The project tier was shown as Free tier; recorded USD 0 estimates are not
+verified billing, and missing embedding token counts remain unknown.
 
 ## Tests and CI
 
