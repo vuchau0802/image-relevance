@@ -19,8 +19,10 @@ Based on the local command outputs and reviewed calibration labels supplied by t
 - Frozen new-query evaluation: 9/12 cases passed; correct accepted top
   matches 6/8, accepted precision 6/7, coverage 7/12, correct no-match
   rejections 3/4. The two false rejections and one false acceptance remain.
-- Latest user-run integration suite: 302 passed, 2 dependency deprecation
-  warnings, in 8.89 seconds against the isolated test database.
+- Latest user-run integration suite: 315 passed, 2 dependency deprecation
+  warnings, in 6.27 seconds against the isolated test database.
+- Frontend production build and ESLint passed. User-supplied page output
+  shows ranked fox/Yosemite results, photo credits, and request-error states.
 - Calibration and regression results are not independent held-out accuracy
   estimates. Full-capstone completion is not claimed.
 
@@ -645,7 +647,7 @@ suggest sensitivity to query wording but do not establish its cause
 or demonstrate performance on unseen queries.
 
 The original held-out report and labels remain unchanged.
-## Latest final verification checkpoint
+## Earlier evaluation verification checkpoint
 
 - User-run isolated suite: 302 passed, two dependency deprecation warnings,
   in 8.89 seconds. pip check and alembic check were clean.
@@ -655,3 +657,38 @@ The original held-out report and labels remain unchanged.
   `59b59fb4128993645af416bcdbba4ef2e2517a5bd1160fca36cb548ef48c1606`.
 - Vehicle development results are saved in
   docs/evidence/vehicle-development-baseline.json (8/8 at 0.85).
+
+## Local frontend and image API verification
+
+- Implemented React/TypeScript post selection, cached ranking results, image
+  previews fetched with the demo tenant header, attribution links, loading
+  and no-match/incomplete states, and request errors with a Try again button.
+- The frontend uses the original ranking API. The context development pilot
+  is a separate command and is not applied by the browser demo.
+- User-run Vite production builds and ESLint completed successfully after
+  preview, styling, and attribution changes. These are build/lint checks,
+  not frontend automated behavior or end-to-end browser tests.
+- User supplied page output for fox results (img_001 and img_003), Yosemite
+  (img_050), and creator/source/license attribution. Copied page text alone
+  does not independently verify image pixels, external link navigation,
+  keyboard access, or responsive layout.
+- User verified /health both directly and through the Vite proxy (HTTP 200).
+  Image-file requests returned 200 for demo, 404 for another tenant, and
+  422 without the required tenant header.
+- User supplied an image-attribution response containing image ID, creator,
+  source URL, and license URL.
+- With the backend stopped, the user reported a 502 recommendation error
+  and Try again button. After restarting the backend, the user reported
+  restored fox results. The supplied output does not distinguish a button
+  retry from another request or page refresh.
+- User-run image API tests: 13 passed, one dependency warning, in 1.10 seconds.
+  Tests use mocked database lookups and temporary image files, exercising
+  successful file responses, tenant lookup keys, required headers, missing
+  files, checksum mismatch, path escape rejection, and attribution responses.
+- Latest user-run isolated full suite: 315 passed, two dependency deprecation
+  warnings, in 6.27 seconds. The endpoint tests do not establish a real
+  database-backed image route integration or production deployment.
+- X-Tenant-ID: demo is local tenant scoping, not authentication. Production
+  frontend serving and API routing remain unconfigured in this workflow.
+- Earlier dependency/migration/readiness checks and evaluation results above
+  retain their original checkpoints; they were not rerun for this doc update.

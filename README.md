@@ -1,6 +1,7 @@
 # Image Relevance
 
-Python/FastAPI backend for classifying images and matching their descriptions
+React/TypeScript demo with a Python/FastAPI backend for classifying images
+and matching their descriptions
 to blog posts using cached embeddings, subject rules, and cosine similarity. The Phase 2 corpus run produced 50 completed images and 50
 metadata records. Original retry failures remain in the original job;
 reprocessing completed both failed images without changing that history.
@@ -22,10 +23,13 @@ FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
 ```
 
 HTTP, business logic, persistence, and worker entry points are separate.
-The React/TypeScript frontend is planned; frontend/ is reserved for the planned implementation.
+The React/TypeScript frontend in frontend/ presents the original demo posts,
+ranked image previews, creator credits, source/license links, and loading,
+no-match, incomplete, and request-error states. It uses the original ranker;
+the separate context pilot is not connected to this UI.
 
 Latest user-run verification: the isolated-database suite passed all
-302 tests in 8.89 seconds, with two dependency deprecation warnings. Offline runs explicitly
+315 tests in 6.27 seconds, with two dependency deprecation warnings. Offline runs explicitly
 skip database integration tests. Tests make no real Gemini requests.
 
 ## Requirements and installation
@@ -89,6 +93,61 @@ Interactive documentation: http://127.0.0.1:8000/docs
 Existing installations must run alembic upgrade head before using revised
 workers or matching. Phase 3 adds posts, versioned embeddings, a separate
 embedding allowance, and post attribution in PostgreSQL AI-call records.
+
+## Frontend local development
+
+The frontend uses React, TypeScript, and Vite. Install a Node.js version
+compatible with the installed Vite package and npm. From the project root:
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+Keep this terminal running and open http://127.0.0.1:5173. The backend must
+run separately on 127.0.0.1:8000 using the commands above, with demo data
+prepared as described below. For a prepared database, a second terminal can
+start only the API from the project root:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Vite forwards /api requests to the backend and removes the /api prefix.
+Check the connection through http://127.0.0.1:5173/api/health. The frontend
+sends X-Tenant-ID: demo for recommendations, image files, and attribution.
+This is tenant scoping for a local demo, not authenticated user identity.
+No Gemini API key is sent to the browser. Ranking uses cached embeddings.
+
+Image files are served by GET /images/{image_id}/file after a tenant-scoped
+database lookup and corpus path/checksum verification. Attribution is served
+by GET /images/{image_id}/attribution. Both require X-Tenant-ID. The frontend
+fetches image blobs with that header and releases temporary object URLs.
+Cards show creator credits plus source/license links. Similarity is shown
+as a score, not a correctness probability.
+
+From frontend, check the production bundle and lint:
+
+```powershell
+npm.cmd run build
+npm.cmd run lint
+```
+
+The user verified both commands successfully. Commit package-lock.json;
+node_modules/ and dist/ are ignored. Documentation remains in this root
+README rather than an additional frontend README.
+
+If the backend is unavailable, a recommendation request displays an error
+and a Try again button. Restart the backend and click Try again to retry.
+Existing displayed results do not automatically trigger an outage check;
+select another post to start a request when testing this behavior.
+
+The current proxy is a development-server setup. A successful build creates
+frontend/dist; production API routing and frontend serving are not configured
+or verified by this workflow. Separate frontend automated tests and a full
+browser end-to-end suite are not yet established.
 
 ## Download and seed
 
@@ -388,9 +447,10 @@ needed for tests. See EVIDENCE.md for actual test counts and verification.
 - Completed classification means bounded schema and confidence checks passed;
   it does not prove accuracy. img_006's species remains unconfirmed.
 - Embeddings, ranking, subject guards, no-match reasons, and measured
-  calibration/regression checks are implemented. Review APIs, the frontend,
-  authenticated tenant identity, and independent held-out evaluation remain
-  outstanding. Subject rules rely on model descriptions and explicit aliases.
+  calibration/regression checks and the local frontend demo are implemented.
+  Review APIs, authenticated tenant identity, production frontend serving,
+  and independent held-out evaluation remain outstanding. Subject rules
+  rely on model descriptions and explicit aliases.
 - capstone.yaml lists development endpoints. Its seed command delegates to
   resumable preparation and reports readiness after processing and embedding.
   Fresh full-corpus preparation with the live provider and final-capstone

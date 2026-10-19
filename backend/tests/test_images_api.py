@@ -1,0 +1,188 @@
+import hashlib
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image as PillowImage
+
+from app.api import images
+from app.main import app
+from app.services import image_files
+
+
+@pytest.fixture
+def image_api(monkeypatch, tmp_path):
+    folder = tmp_path / "data" / "images"
+    folder.mkdir(parents=True)
+
+    path = folder / "sample.jpg"
+    PillowImage.new("RGB", (8, 8), "blue").save(path)
+
+    record = SimpleNamespace(
+        id="img_test",
+        creator="Test Photographer",
+        source_url="https://example.com/photo",
+        license_url="https://example.com/license",
+        file_path="data/images/sample.jpg",
+        checksum=hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+
+    session = MagicMock()
+    session.get.side_effect = (
+        lambda model, key:
+        record if key == ("demo", "img_test") else None
+    )
+
+    session_context = MagicMock()
+    session_context.__enter__.return_value = session
+
+    monkeypatch.setattr(
+        images, "SessionLocal", lambda: session_context
+    )
+    monkeypatch.setattr(image_files, "PROJECT_ROOT", tmp_path)
+
+    with TestClient(app) as client:
+        yield client, record, path, session
+
+
+def test_registered_image_is_served(image_api):
+    client, _, path, _ = image_api
+
+    response = client.get(
+        "/images/img_test/file",
+        headers={"X-Tenant-ID": "demo"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == path.read_bytes()
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_different_tenant_cannot_read_image(image_api):
+    client, _, _, session = image_api
+
+    response = client.get(
+        "/images/img_test/file",
+        headers={"X-Tenant-ID": "different-tenant"},
+    )
+
+    assert response.status_code == 404
+    session.get.assert_called_once_with(
+        images.Image, ("different-tenant", "img_test")
+    )
+
+
+def test_unknown_image_returns_404(image_api):
+    client, _, _, _ = image_api
+
+    response = client.get(
+        "/images/unknown/file",
+        headers={"X-Tenant-ID": "demo"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_missing_tenant_returns_422(image_api):
+    client, _, _, session = image_api
+
+    response = client.get("/images/img_test/file")
+
+    assert response.status_code == 422
+    session.get.assert_not_called()
+
+
+def test_blank_tenant_returns_422(image_api):
+    client, _, _, session = image_api
+
+    response = client.get(
+        "/images/img_test/file",
+        headers={"X-Tenant-ID": "   "},
+    )
+
+    assert response.status_code == 422
+    session.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "problem", ["missing", "checksum", "outside_corpus"]
+)
+def test_invalid_registered_file_is_not_served(image_api, problem):
+    client, record, path, _ = image_api
+
+    if problem == "missing":
+        path.unlink()
+    elif problem == "checksum":
+        path.write_bytes(b"Changed file contents")
+    else:
+        outside = path.parents[2] / "outside.jpg"
+        outside.write_bytes(path.read_bytes())
+        record.file_path = "outside.jpg"
+
+    response = client.get(
+        "/images/img_test/file",
+        headers={"X-Tenant-ID": "demo"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Image file unavailable"}
+
+
+def test_image_attribution_is_returned(image_api):
+    client, _, _, _ = image_api
+
+    response = client.get(
+        "/images/img_test/attribution",
+        headers={"X-Tenant-ID": "demo"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "image_id": "img_test",
+        "creator": "Test Photographer",
+        "source_url": "https://example.com/photo",
+        "license_url": "https://example.com/license",
+    }
+
+
+def test_attribution_is_tenant_scoped(image_api):
+    client, _, _, session = image_api
+
+    response = client.get(
+        "/images/img_test/attribution",
+        headers={"X-Tenant-ID": "different-tenant"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Image not found"}
+    session.get.assert_called_once_with(
+        images.Image, ("different-tenant", "img_test")
+    )
+
+
+def test_unknown_attribution_returns_404(image_api):
+    client, _, _, _ = image_api
+
+    response = client.get(
+        "/images/unknown/attribution",
+        headers={"X-Tenant-ID": "demo"},
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("tenant", [None, "   "])
+def test_attribution_requires_nonblank_tenant(image_api, tenant):
+    client, _, _, session = image_api
+    headers = {} if tenant is None else {"X-Tenant-ID": tenant}
+
+    response = client.get(
+        "/images/img_test/attribution",
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    session.get.assert_not_called()
