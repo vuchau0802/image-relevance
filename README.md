@@ -1,15 +1,17 @@
 # Image Relevance
 
 React/TypeScript demo with a Python/FastAPI backend for classifying images
-and matching their descriptions
-to blog posts using cached embeddings, subject rules, and cosine similarity. The Phase 2 corpus run produced 50 completed images and 50
+and matching their descriptions to blog posts using cached embeddings,
+subject rules, and cosine similarity. The Phase 2 corpus run produced
+50 completed images and 50
 metadata records. Original retry failures remain in the original job;
 reprocessing completed both failed images without changing that history.
 
 ## Architecture
 
 ```text
-FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
+React frontend -> FastAPI /api/posts, /api/posts/{post_id}/images
+                  /api/images/{image_id}/file and /attribution
              |
        repositories ---------------- PostgreSQL / Alembic
              |                        images, metadata, jobs, posts,
@@ -23,18 +25,22 @@ FastAPI /health, /jobs/{job_id}, /posts/{post_id}/images
 ```
 
 HTTP, business logic, persistence, and worker entry points are separate.
-The React/TypeScript frontend in frontend/ presents the original demo posts,
+The React/TypeScript frontend in frontend/ loads tenant posts from the API,
 ranked image previews, creator credits, source/license links, and loading,
 no-match, incomplete, and request-error states. It uses the original ranker;
 the separate context pilot is not connected to this UI.
 
-Latest user-run verification: the isolated-database suite passed all
-315 tests in 6.27 seconds, with two dependency deprecation warnings. Offline runs explicitly
-skip database integration tests. Tests make no real Gemini requests.
+Latest user-run verification: 336 backend tests passed in 6.54 seconds
+against the isolated test database, with two dependency deprecation
+warnings. All 10 frontend tests, the production build, and ESLint passed.
+Default offline backend runs explicitly skip database integration tests.
+Automated tests use fake provider responses rather than real Gemini calls.
 
 ## Requirements and installation
 
 - Python 3.14 was used for local verification.
+- Node.js and npm are required for the frontend build and tests; use a
+  version compatible with the locked Vite/Vitest packages.
 - Docker Desktop with Compose is needed for the API database and integration
   tests. Offline unit tests need neither Docker nor API credentials.
 - Available Gemini quota is needed for actual classification and embedding generation.
@@ -94,60 +100,89 @@ Existing installations must run alembic upgrade head before using revised
 workers or matching. Phase 3 adds posts, versioned embeddings, a separate
 embedding allowance, and post attribution in PostgreSQL AI-call records.
 
-## Frontend local development
+## Frontend: single-server demo
 
-The frontend uses React, TypeScript, and Vite. Install a Node.js version
-compatible with the installed Vite package and npm. From the project root:
+For a database already prepared with demo sources and current embeddings,
+build the frontend from the project root:
 
 ```powershell
 cd frontend
-npm.cmd install
-npm.cmd run dev
+npm.cmd ci
+npm.cmd run build
+cd ..
+.\.venv\Scripts\python.exe backend/scripts/run_demo.py
 ```
 
-Keep this terminal running and open http://127.0.0.1:5173. The backend must
-run separately on 127.0.0.1:8000 using the commands above, with demo data
-prepared as described below. For a prepared database, a second terminal can
-start only the API from the project root:
+Open http://127.0.0.1:8000. The startup script starts PostgreSQL, waits for
+readiness, applies migrations, and launches FastAPI on localhost. It does not
+build the frontend or prepare missing classifications/embeddings; see
+Download and seed below for data preparation.
+
+FastAPI serves frontend/dist at / and its compiled assets from /assets/.
+The browser uses /api routes on the same origin; Vite need not be running.
+If the build is missing at backend startup, / returns 503 with a build
+instruction while API routes remain available. Rebuild and restart FastAPI
+after frontend changes. A successful build is local deployment preparation,
+not evidence of a publicly deployed service.
+
+### Optional Vite development server
+
+For automatic frontend updates, run these in separate terminals from the
+project root, with PostgreSQL running and migrations applied:
 
 ```powershell
+# Terminal 1: backend
 cd backend
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Vite forwards /api requests to the backend and removes the /api prefix.
-Check the connection through http://127.0.0.1:5173/api/health. The frontend
-sends X-Tenant-ID: demo for recommendations, image files, and attribution.
-This is tenant scoping for a local demo, not authenticated user identity.
-No Gemini API key is sent to the browser. Ranking uses cached embeddings.
-
-Image files are served by GET /images/{image_id}/file after a tenant-scoped
-database lookup and corpus path/checksum verification. Attribution is served
-by GET /images/{image_id}/attribution. Both require X-Tenant-ID. The frontend
-fetches image blobs with that header and releases temporary object URLs.
-Cards show creator credits plus source/license links. Similarity is shown
-as a score, not a correctness probability.
-
-From frontend, check the production bundle and lint:
-
 ```powershell
-npm.cmd run build
-npm.cmd run lint
+# Terminal 2: frontend
+cd frontend
+npm.cmd run dev
 ```
 
-The user verified both commands successfully. Commit package-lock.json;
-node_modules/ and dist/ are ignored. Documentation remains in this root
-README rather than an additional frontend README.
+Open http://127.0.0.1:5173. Vite forwards /api requests to the backend and
+removes the /api prefix. Existing unprefixed API URLs remain supported for
+CLI utilities and earlier clients. /health and /api/health both return the
+health response; an unknown /api route returns 404 rather than the frontend.
 
-If the backend is unavailable, a recommendation request displays an error
-and a Try again button. Restart the backend and click Try again to retry.
-Existing displayed results do not automatically trigger an outage check;
-select another post to start a request when testing this behavior.
+### Posts, previews, and attribution
 
-The current proxy is a development-server setup. A successful build creates
-frontend/dist; production API routing and frontend serving are not configured
-or verified by this workflow. Separate frontend automated tests and a full
-browser end-to-end suite are not yet established.
+The post picker loads every page of GET /api/posts?offset=0&limit=50 instead
+of duplicating a post list in React. Pages contain items and next_offset;
+null next_offset means the final page. Pagination is ordered by post ID.
+The endpoint lists all posts for the selected tenant, including calibration
+and development posts if they have been seeded. An empty list and a failed
+load have separate states; Reload posts retries a failed list request.
+
+The shared frontend request helper sends X-Tenant-ID: demo for post listing,
+recommendations, image files, and attribution. This is caller-controlled
+tenant scoping for a local demo, not authenticated user identity. Login,
+server-derived workspace ownership, and private user uploads are planned.
+No Gemini API key is sent to the browser. Ranking uses cached embeddings.
+
+GET /api/images/{image_id}/file looks up the image by tenant and checks the
+registered corpus path and SHA-256 before serving the original JPEG.
+GET /api/images/{image_id}/attribution returns the creator, source URL, and
+license URL. Both require the tenant header. The frontend fetches image
+blobs with that header and releases temporary object URLs. Attribution links
+allow only http(s) URLs. Source licenses apply separately from the code license.
+
+Cards show cosine similarity as a score, not a correctness probability.
+No-match and unsupported-subject responses show an explanation; incomplete
+results are labeled provisional. Aborted or outdated recommendation responses
+are ignored when switching posts.
+
+If the backend is unavailable, a new recommendation request displays an error
+and Try again. Restart the backend and click Try again to retry. Existing
+results do not automatically check backend health; select another post to
+trigger a request when testing an outage.
+
+Commit package-lock.json; node_modules/ and dist/ remain ignored. This root
+README is the single setup README. HTTPS, hosted storage, backups, persistent
+worker supervision, and authenticated multi-user deployment remain separate
+work. A complete real-browser end-to-end test suite is not established.
 
 ## Download and seed
 
@@ -432,8 +467,54 @@ credential, not a production credential. Remove only the test service with:
 docker compose -f ..\docker-compose.test.yml -p image-relevance-tests down
 ```
 
-GitHub Actions provisions the same isolated database. A live API server is not
-needed for tests. See EVIDENCE.md for actual test counts and verification.
+GitHub Actions provisions the same isolated database. A live API server is
+not needed for these tests.
+
+Frontend checks, from frontend:
+
+```powershell
+npm.cmd test
+npm.cmd run build
+npm.cmd run lint
+```
+
+npm.cmd test runs Vitest once; npm.cmd run test:watch starts watch mode.
+The 10 frontend tests cover post selection/empty/retry states, multi-page
+loading and pagination failures, recommendation no-match/retry behavior,
+and ignoring a late response after post selection changes. API responses
+are mocked; image preview and attribution components are mocked in App tests.
+These tests do not establish real browser image decoding or external link
+navigation. No running backend or provider credentials are required.
+
+### Latest verification
+
+- User-run isolated backend suite: 336 passed, two existing dependency
+  deprecation warnings, in 6.54 seconds.
+- Image API: 13 tests passed for file/attribution responses, tenant lookup,
+  required headers, missing files, checksum mismatch, and path containment.
+- Post API/repository: eight API tests and four isolated-database tests cover
+  tenant forwarding/filtering, input validation, ordering, and pagination.
+- Frontend serving: nine tests passed using a temporary build, covering index
+  and asset delivery, health/API precedence, unknown paths, and absent builds.
+- Frontend: 10 tests passed in 1.28 seconds; build and lint passed. An observed
+  duplicate React key warning was corrected and was absent in the rerun.
+- Live local requests: /api/health returned 200; an unknown /api path returned
+  404. Image-file requests returned 200 for demo, 404 for another tenant,
+  and 422 without the header. Attribution JSON was returned for img_001.
+- User-supplied browser output showed the API-backed post list, fox/Yosemite
+  recommendations, creator/source/license credits, and a penguin no-match
+  state. An outage showed a 502 error and Try again, followed by restored
+  results after backend restart. Page text alone does not independently
+  establish image rendering, link navigation, or the exact recovery action.
+- Earlier dependency/migration/readiness checks passed at their recorded
+  checkpoints. They were not rerun for this documentation-only update.
+
+Original evaluation artifacts remain under docs/evidence and are separate
+from development checks. The preserved first-run report SHA-256 remains
+`59b59fb4128993645af416bcdbba4ef2e2517a5bd1160fca36cb548ef48c1606`.
+The separate context pilot rejected the inspected snowy-fox mismatch;
+eight vehicle development cases passed at 0.85. These are development
+results and do not replace the original 9/12 new-query evaluation.
 
 ## Limits and submission status
 
@@ -448,8 +529,9 @@ needed for tests. See EVIDENCE.md for actual test counts and verification.
   it does not prove accuracy. img_006's species remains unconfirmed.
 - Embeddings, ranking, subject guards, no-match reasons, and measured
   calibration/regression checks and the local frontend demo are implemented.
-  Review APIs, authenticated tenant identity, production frontend serving,
-  and independent held-out evaluation remain outstanding. Subject rules
+  Review APIs, authenticated tenant identity, private uploads, hosted
+  deployment, and independent held-out evaluation remain outstanding.
+  Single-server static frontend serving is implemented. Subject rules
   rely on model descriptions and explicit aliases.
 - capstone.yaml lists development endpoints. Its seed command delegates to
   resumable preparation and reports readiness after processing and embedding.

@@ -20,7 +20,10 @@
 - Configured Gemini using environment variables and confirmed that `.env` is ignored by Git. The API key is not included in this log.
 - Processed `img_001.jpg` with `gemini-3.8-flash`; the validated result identified a red fox and was saved to `data/processed/img_001.json`.
 - Inspected the call log: 1,201 input tokens, 106 output tokens, completed status, and a $0 free-tier cost estimate attributed to `img_001`.
-- Recorded the actual outputs in `EVIDENCE.md`. Confidence calibration and evaluation accuracy are still pending.
+- At this historical checkpoint, recorded outputs in a separate evidence log
+  (subsequently removed at the user's request). Current verification is in
+  README.md; preserved evaluation artifacts are under docs/evidence.
+  Confidence calibration and evaluation accuracy were pending at that checkpoint.
 
 ### AI assistance and corrections
 
