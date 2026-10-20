@@ -5,8 +5,8 @@ from fastapi.responses import FileResponse
 
 from app.database import SessionLocal
 from app.models import Image
+from app.schemas.image import ImageAttribution
 from app.services.image_files import verify_registered_image
-from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -26,7 +26,7 @@ def read_image_file(
             max_length=50,
         ),
     ],
-):
+) -> FileResponse:
     if not tenant_id.strip() or not image_id.strip():
         raise HTTPException(
             status_code=422,
@@ -62,13 +62,6 @@ def read_image_file(
         },
     )
 
-class ImageAttribution(BaseModel):
-    image_id: str
-    creator: str
-    source_url: str
-    license_url: str
-
-
 @router.get(
     "/{image_id}/attribution",
     response_model=ImageAttribution,
@@ -86,7 +79,7 @@ def read_image_attribution(
             max_length=50,
         ),
     ],
-):
+) -> ImageAttribution:
     if not tenant_id.strip() or not image_id.strip():
         raise HTTPException(
             status_code=422,

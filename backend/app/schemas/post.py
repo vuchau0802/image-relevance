@@ -12,6 +12,15 @@ class PostInput(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
     required_subject: str = Field(min_length=1, max_length=200)
 
+class PostSummary(BaseModel):
+    id: str
+    title: str
+    required_subject: str
+
+
+class PostListResponse(BaseModel):
+    items: list[PostSummary]
+    next_offset: int | None
 
 def validate_post_corpus(data: object) -> list[PostInput]:
     posts = TypeAdapter(list[PostInput]).validate_python(data)

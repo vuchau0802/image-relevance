@@ -16,3 +16,10 @@ class ImageMetadata(BaseModel):
     )
     caption: str = Field(min_length=1, max_length=2000)
     confidence: float = Field(ge=0, le=1)
+
+
+class ImageAttribution(BaseModel):
+    image_id: str
+    creator: str
+    source_url: str
+    license_url: str

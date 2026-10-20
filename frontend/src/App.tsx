@@ -3,29 +3,20 @@ import { getRecommendations } from './api'
 import type { RankingResponse } from './api'
 import ImagePreview from './ImagePreview'
 import ImageAttribution from './ImageAttribution'
-
-const posts = [
-  ['post_001', 'Red foxes in urban environments'],
-  ['post_002', 'Family behavior in Vulpes vulpes'],
-  ['post_003', 'Gray wolves in grassland habitats'],
-  ['post_004', 'Keeping dogs active at the beach'],
-  ['post_005', 'Black bears in natural habitats'],
-  ['post_006', 'The classic Volkswagen Beetle'],
-  ['post_007', 'Motor scooters for city travel'],
-  ['post_008', 'Serving freshly baked pizza'],
-  ['post_009', 'Preparing a colorful vegetable salad'],
-  ['post_010', 'Waterfalls and granite cliffs in Yosemite'],
-  ['post_011', 'Emperor penguins in Antarctica'],
-]
+import PostPicker from './PostPicker'
 
 function App() {
-  const [postId, setPostId] = useState('post_001')
+  const [postId, setPostId] = useState('')
   const [result, setResult] = useState<RankingResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
 
   useEffect(() => {
+    if (!postId) {
+      return
+    }
+
     const controller = new AbortController()
 
     async function load() {
@@ -64,27 +55,14 @@ function App() {
   return (
     <main style={{ maxWidth: 900, margin: '40px auto', padding: 24 }}>
       <h1>Image Relevance</h1>
-      <p>Select a demo post to find suitable images.</p>
+      <p>Select a post to find suitable images.</p>
 
-      <label htmlFor="post">Blog post</label>
-      <br />
-      <select
-        id="post"
-        value={postId}
-        onChange={(event) => setPostId(event.target.value)}
-        style={{ padding: 12, marginTop: 8, maxWidth: '100%' }}
-      >
-        {posts.map(([id, title]) => (
-          <option key={id} value={id}>
-            {title}
-          </option>
-        ))}
-      </select>
+      <PostPicker value={postId} onSelect={setPostId} />
 
       <section aria-live="polite" aria-busy={loading}>
-        {loading && <p>Finding suitable images…</p>}
+        {postId && loading && <p>Finding suitable images…</p>}
 
-        {error && (
+        {postId && error && (
           <div role="alert">
             <p>{error}</p>
             <button onClick={() => setRetry((value) => value + 1)}>
@@ -93,7 +71,7 @@ function App() {
           </div>
         )}
 
-        {result && (
+        {postId && result && result.post_id === postId && (
           <>
             <h2>
               {result.status === 'matched'
@@ -122,12 +100,10 @@ function App() {
                 }}
               >
                 <ImagePreview
-                  key={image.image_id}
                   imageId={image.image_id}
                   description={image.caption}
                 />
                 <ImageAttribution
-                  key={image.image_id}
                   imageId={image.image_id}
                 />
                 <h3>{image.subject}</h3>

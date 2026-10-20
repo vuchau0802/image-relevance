@@ -1,3 +1,4 @@
+import { apiFetch } from './http'
 import { useEffect, useState } from 'react'
 
 interface Attribution {
@@ -37,12 +38,9 @@ export default function ImageAttribution({
       setFailed(false)
 
       try {
-        const response = await fetch(
-          `/api/images/${encodeURIComponent(imageId)}/attribution`,
-          {
-            headers: { 'X-Tenant-ID': 'demo' },
-            signal: controller.signal,
-          },
+        const response = await apiFetch(
+          `/images/${encodeURIComponent(imageId)}/attribution`,
+          controller.signal,
         )
 
         if (!response.ok) {

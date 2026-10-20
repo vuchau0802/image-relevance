@@ -1,3 +1,4 @@
+import { apiFetch } from './http'
 import { useEffect, useState } from 'react'
 
 interface Props {
@@ -21,12 +22,9 @@ export default function ImagePreview({
       setError(false)
 
       try {
-        const response = await fetch(
-          `/api/images/${encodeURIComponent(imageId)}/file`,
-          {
-            headers: { 'X-Tenant-ID': 'demo' },
-            signal: controller.signal,
-          },
+        const response = await apiFetch(
+          `/images/${encodeURIComponent(imageId)}/file`,
+          controller.signal,
         )
 
         if (!response.ok) {
