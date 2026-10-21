@@ -1,3 +1,4 @@
+import { useSessionToken } from './useSessionToken'
 import { useEffect, useState } from 'react'
 import { getRecommendations } from './api'
 import type { RankingResponse } from './api'
@@ -6,6 +7,7 @@ import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
 
 function App() {
+  const getSessionToken = useSessionToken()
   const [postId, setPostId] = useState('')
   const [result, setResult] = useState<RankingResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -28,6 +30,7 @@ function App() {
         const data = await getRecommendations(
           postId,
           controller.signal,
+          await getSessionToken(),
         )
 
         if (!controller.signal.aborted) {
@@ -50,7 +53,7 @@ function App() {
 
     void load()
     return () => controller.abort()
-  }, [postId, retry])
+  }, [getSessionToken, postId, retry])
 
   return (
     <main style={{ maxWidth: 900, margin: '40px auto', padding: 24 }}>

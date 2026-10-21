@@ -6,6 +6,14 @@ import App from './App'
 import { getPosts, getRecommendations } from './api'
 import type { RankingResponse } from './api'
 
+const { getSessionToken } = vi.hoisted(() => ({
+  getSessionToken: vi.fn(),
+}))
+
+vi.mock('./useSessionToken', () => ({
+  useSessionToken: () => getSessionToken,
+}))
+
 vi.mock('./api', () => ({
   getPosts: vi.fn(),
   getRecommendations: vi.fn(),
@@ -40,6 +48,8 @@ function ranking(
 }
 
 beforeEach(() => {
+  getSessionToken.mockReset()
+  getSessionToken.mockResolvedValue('synthetic-session-token')
   mockedPosts.mockReset()
   mockedRecommendations.mockReset()
 
@@ -131,6 +141,7 @@ test('ignores an old response after switching posts', async () => {
     expect(mockedRecommendations).toHaveBeenCalledWith(
       'post_001',
       expect.any(AbortSignal),
+      'synthetic-session-token',
     )
   })
 

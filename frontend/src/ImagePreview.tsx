@@ -1,3 +1,4 @@
+import { useSessionToken } from './useSessionToken'
 import { apiFetch } from './http'
 import { useEffect, useState } from 'react'
 
@@ -10,6 +11,7 @@ export default function ImagePreview({
   imageId,
   description,
 }: Props) {
+  const getSessionToken = useSessionToken()
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState(false)
 
@@ -25,6 +27,7 @@ export default function ImagePreview({
         const response = await apiFetch(
           `/images/${encodeURIComponent(imageId)}/file`,
           controller.signal,
+          await getSessionToken(),
         )
 
         if (!response.ok) {
@@ -53,7 +56,7 @@ export default function ImagePreview({
         URL.revokeObjectURL(objectUrl)
       }
     }
-  }, [imageId])
+  }, [getSessionToken, imageId])
 
   if (error) {
     return <p role="status">Image preview unavailable.</p>

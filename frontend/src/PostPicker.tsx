@@ -1,3 +1,4 @@
+import { useSessionToken } from './useSessionToken'
 import { useEffect, useState } from 'react'
 import { getPosts } from './api'
 import type { PostSummary } from './api'
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function PostPicker({ value, onSelect }: Props) {
+  const getSessionToken = useSessionToken()
   const [posts, setPosts] = useState<PostSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -21,7 +23,10 @@ export default function PostPicker({ value, onSelect }: Props) {
       setError('')
 
       try {
-        const items = await getPosts(controller.signal)
+        const items = await getPosts(
+          controller.signal,
+          await getSessionToken(),
+        )
 
         if (!controller.signal.aborted) {
           setPosts(items)
@@ -50,7 +55,7 @@ export default function PostPicker({ value, onSelect }: Props) {
 
     void load()
     return () => controller.abort()
-  }, [onSelect, retry])
+  }, [getSessionToken, onSelect, retry])
 
   if (loading) {
     return <p role="status">Loading posts…</p>

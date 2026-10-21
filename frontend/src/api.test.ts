@@ -44,14 +44,14 @@ test('combines posts from every page', async () => {
       next_offset: null,
     }))
 
-  await expect(getPosts(signal)).resolves.toEqual([first, second])
+  await expect(getPosts(signal, 'synthetic-session-token')).resolves.toEqual([first, second])
 
   expect(mockedFetch).toHaveBeenCalledTimes(2)
   expect(mockedFetch).toHaveBeenNthCalledWith(
-    1, '/posts?offset=0&limit=50', signal,
+    1, '/posts?offset=0&limit=50', signal, 'synthetic-session-token',
   )
   expect(mockedFetch).toHaveBeenNthCalledWith(
-    2, '/posts?offset=1&limit=50', signal,
+    2, '/posts?offset=1&limit=50', signal, 'synthetic-session-token',
   )
 })
 
@@ -62,7 +62,7 @@ test('returns an empty list without requesting another page', async () => {
   }))
 
   await expect(
-    getPosts(new AbortController().signal),
+    getPosts(new AbortController().signal, 'synthetic-session-token'),
   ).resolves.toEqual([])
 
   expect(mockedFetch).toHaveBeenCalledTimes(1)
@@ -75,7 +75,7 @@ test('rejects pagination that does not advance', async () => {
   }))
 
   await expect(
-    getPosts(new AbortController().signal),
+    getPosts(new AbortController().signal, 'synthetic-session-token'),
   ).rejects.toThrow('Invalid post pagination response.')
 
   expect(mockedFetch).toHaveBeenCalledTimes(1)
@@ -94,6 +94,6 @@ test('fails if a later page cannot be loaded', async () => {
     .mockResolvedValueOnce(response({}, 502))
 
   await expect(
-    getPosts(new AbortController().signal),
+    getPosts(new AbortController().signal, 'synthetic-session-token'),
   ).rejects.toThrow('Could not load posts (502).')
 })

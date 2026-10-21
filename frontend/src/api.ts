@@ -20,10 +20,12 @@ export interface RankingResponse {
 export async function getRecommendations(
   postId: string,
   signal: AbortSignal,
+  accessToken: string,
 ): Promise<RankingResponse> {
   const response = await apiFetch(
     `/posts/${encodeURIComponent(postId)}/images?top=5`,
     signal,
+    accessToken,
   )
 
   if (!response.ok) {
@@ -54,6 +56,7 @@ interface PostPage {
 
 export async function getPosts(
   signal: AbortSignal,
+  accessToken: string,
 ): Promise<PostSummary[]> {
   const posts: PostSummary[] = []
   let offset = 0
@@ -62,6 +65,7 @@ export async function getPosts(
     const response = await apiFetch(
       `/posts?offset=${offset}&limit=50`,
       signal,
+      accessToken,
     )
 
     if (!response.ok) {

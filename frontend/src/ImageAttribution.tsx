@@ -1,3 +1,4 @@
+import { useSessionToken } from './useSessionToken'
 import { apiFetch } from './http'
 import { useEffect, useState } from 'react'
 
@@ -27,6 +28,7 @@ export default function ImageAttribution({
 }: {
   imageId: string
 }) {
+  const getSessionToken = useSessionToken()
   const [data, setData] = useState<Attribution | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -41,6 +43,7 @@ export default function ImageAttribution({
         const response = await apiFetch(
           `/images/${encodeURIComponent(imageId)}/attribution`,
           controller.signal,
+          await getSessionToken(),
         )
 
         if (!response.ok) {
@@ -61,7 +64,7 @@ export default function ImageAttribution({
 
     void load()
     return () => controller.abort()
-  }, [imageId])
+  }, [getSessionToken, imageId])
 
   if (failed) {
     return <p>Photo credits unavailable.</p>

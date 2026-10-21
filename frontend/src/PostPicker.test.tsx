@@ -5,6 +5,14 @@ import userEvent from '@testing-library/user-event'
 import { getPosts } from './api'
 import PostPicker from './PostPicker'
 
+const { getSessionToken } = vi.hoisted(() => ({
+  getSessionToken: vi.fn(),
+}))
+
+vi.mock('./useSessionToken', () => ({
+  useSessionToken: () => getSessionToken,
+}))
+
 vi.mock('./api', () => ({
   getPosts: vi.fn(),
 }))
@@ -12,6 +20,8 @@ vi.mock('./api', () => ({
 const mockedGetPosts = vi.mocked(getPosts)
 
 beforeEach(() => {
+  getSessionToken.mockReset()
+  getSessionToken.mockResolvedValue('synthetic-session-token')
   mockedGetPosts.mockReset()
 })
 
