@@ -7,12 +7,15 @@ from fastapi.testclient import TestClient
 from PIL import Image as PillowImage
 
 from app.api import images
-from app.main import app
+from app.api.dependencies import require_workspace
+from app.main import create_app
 from app.services import image_files
 
 
 @pytest.fixture
 def image_api(monkeypatch, tmp_path):
+    application = create_app(frontend_dir=tmp_path / "frontend")
+    application.dependency_overrides[require_workspace] = lambda: "ws_test"
     folder = tmp_path / "data" / "images"
     folder.mkdir(parents=True)
 
@@ -31,7 +34,7 @@ def image_api(monkeypatch, tmp_path):
     session = MagicMock()
     session.get.side_effect = (
         lambda model, key:
-        record if key == ("demo", "img_test") else None
+        record if key == ("ws_test", "img_test") else None
     )
 
     session_context = MagicMock()
@@ -42,7 +45,7 @@ def image_api(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(image_files, "PROJECT_ROOT", tmp_path)
 
-    with TestClient(app) as client:
+    with TestClient(application) as client:
         yield client, record, path, session
 
 
@@ -61,8 +64,9 @@ def test_registered_image_is_served(image_api):
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-def test_different_tenant_cannot_read_image(image_api):
+def test_different_workspace_cannot_read_image(image_api):
     client, _, _, session = image_api
+    client.app.dependency_overrides[require_workspace] = lambda: "ws_other"
 
     response = client.get(
         "/images/img_test/file",
@@ -71,7 +75,7 @@ def test_different_tenant_cannot_read_image(image_api):
 
     assert response.status_code == 404
     session.get.assert_called_once_with(
-        images.Image, ("different-tenant", "img_test")
+        images.Image, ("ws_other", "img_test")
     )
 
 
@@ -86,25 +90,28 @@ def test_unknown_image_returns_404(image_api):
     assert response.status_code == 404
 
 
-def test_missing_tenant_returns_422(image_api):
+def test_missing_authentication_returns_401(image_api):
     client, _, _, session = image_api
+    del client.app.dependency_overrides[require_workspace]
 
     response = client.get("/images/img_test/file")
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     session.get.assert_not_called()
 
 
-def test_blank_tenant_returns_422(image_api):
+def test_forged_tenant_header_does_not_change_workspace(image_api):
     client, _, _, session = image_api
 
     response = client.get(
         "/images/img_test/file",
-        headers={"X-Tenant-ID": "   "},
+        headers={"X-Tenant-ID": "ws_someone_else"},
     )
 
-    assert response.status_code == 422
-    session.get.assert_not_called()
+    assert response.status_code == 200
+    session.get.assert_called_once_with(
+        images.Image, ("ws_test", "img_test")
+    )
 
 
 @pytest.mark.parametrize(
@@ -148,8 +155,9 @@ def test_image_attribution_is_returned(image_api):
     }
 
 
-def test_attribution_is_tenant_scoped(image_api):
+def test_attribution_is_workspace_scoped(image_api):
     client, _, _, session = image_api
+    client.app.dependency_overrides[require_workspace] = lambda: "ws_other"
 
     response = client.get(
         "/images/img_test/attribution",
@@ -159,7 +167,7 @@ def test_attribution_is_tenant_scoped(image_api):
     assert response.status_code == 404
     assert response.json() == {"detail": "Image not found"}
     session.get.assert_called_once_with(
-        images.Image, ("different-tenant", "img_test")
+        images.Image, ("ws_other", "img_test")
     )
 
 
@@ -174,9 +182,10 @@ def test_unknown_attribution_returns_404(image_api):
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize("tenant", [None, "   "])
-def test_attribution_requires_nonblank_tenant(image_api, tenant):
+@pytest.mark.parametrize("tenant", [None, "demo"])
+def test_attribution_requires_authentication(image_api, tenant):
     client, _, _, session = image_api
+    del client.app.dependency_overrides[require_workspace]
     headers = {} if tenant is None else {"X-Tenant-ID": tenant}
 
     response = client.get(
@@ -184,5 +193,5 @@ def test_attribution_requires_nonblank_tenant(image_api, tenant):
         headers=headers,
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     session.get.assert_not_called()

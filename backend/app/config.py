@@ -51,6 +51,14 @@ class Settings(BaseSettings):
         le=1,
     )
 
+    clerk_issuer: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+
+    clerk_authorized_parties: list[str] = Field(
+        default_factory=list,
+    )
     postgres_host: str = "127.0.0.1"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     postgres_user: str = Field(min_length=1)

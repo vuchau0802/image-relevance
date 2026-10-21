@@ -4,24 +4,33 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api import posts
-from app.main import app
+from app.api.dependencies import require_workspace
+from app.main import create_app
 from app.schemas.post import PostListResponse, PostSummary
 
 
 @pytest.fixture
-def posts_api(monkeypatch):
+def posts_api(monkeypatch, tmp_path):
+    application = create_app(frontend_dir=tmp_path)
+
+    # Explicitly simulate authenticated workspace resolution for these tests.
+    application.dependency_overrides[require_workspace] = (
+        lambda: "ws_test"
+    )
+
     listing = Mock(return_value=PostListResponse(
         items=[],
         next_offset=None,
     ))
     monkeypatch.setattr(posts, "list_posts", listing)
 
-    with TestClient(app) as client:
-        yield client, listing
+    with TestClient(application) as client:
+        yield client, listing, application
 
 
-def test_posts_and_pagination_are_returned(posts_api):
-    client, listing = posts_api
+def test_posts_use_verified_workspace(posts_api):
+    client, listing, _ = posts_api
+
     listing.return_value = PostListResponse(
         items=[
             PostSummary(
@@ -33,10 +42,7 @@ def test_posts_and_pagination_are_returned(posts_api):
         next_offset=3,
     )
 
-    response = client.get(
-        "/posts?offset=2&limit=1",
-        headers={"X-Tenant-ID": "demo"},
-    )
+    response = client.get("/posts?offset=2&limit=1")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -48,16 +54,16 @@ def test_posts_and_pagination_are_returned(posts_api):
         "next_offset": 3,
     }
     listing.assert_called_once_with(
-        tenant_id="demo", offset=2, limit=1
+        tenant_id="ws_test", offset=2, limit=1
     )
 
 
-def test_empty_list_uses_requested_tenant(posts_api):
-    client, listing = posts_api
+def test_forged_header_cannot_change_workspace(posts_api):
+    client, listing, _ = posts_api
 
     response = client.get(
         "/posts",
-        headers={"X-Tenant-ID": "different-tenant"},
+        headers={"X-Tenant-ID": "another-workspace"},
     )
 
     assert response.status_code == 200
@@ -66,18 +72,19 @@ def test_empty_list_uses_requested_tenant(posts_api):
         "next_offset": None,
     }
     listing.assert_called_once_with(
-        tenant_id="different-tenant", offset=0, limit=50
+        tenant_id="ws_test", offset=0, limit=50
     )
 
 
-@pytest.mark.parametrize("tenant", [None, "   "])
-def test_nonblank_tenant_is_required(posts_api, tenant):
-    client, listing = posts_api
-    headers = {} if tenant is None else {"X-Tenant-ID": tenant}
+@pytest.mark.parametrize("tenant", [None, "demo"])
+def test_authentication_is_required(posts_api, tenant):
+    client, listing, application = posts_api
+    del application.dependency_overrides[require_workspace]
 
+    headers = {} if tenant is None else {"X-Tenant-ID": tenant}
     response = client.get("/posts", headers=headers)
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     listing.assert_not_called()
 
 
@@ -91,12 +98,9 @@ def test_nonblank_tenant_is_required(posts_api, tenant):
     ],
 )
 def test_invalid_pagination_is_rejected(posts_api, query):
-    client, listing = posts_api
+    client, listing, _ = posts_api
 
-    response = client.get(
-        f"/posts?{query}",
-        headers={"X-Tenant-ID": "demo"},
-    )
+    response = client.get(f"/posts?{query}")
 
     assert response.status_code == 422
     listing.assert_not_called()

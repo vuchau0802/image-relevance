@@ -4,7 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api import recommendations
-from app.main import app
+from app.api.dependencies import require_workspace
+from app.main import create_app
 from app.services.ranking import (
     MissingPostEmbeddingError,
     PostNotFoundError,
@@ -12,7 +13,9 @@ from app.services.ranking import (
 
 
 @pytest.fixture
-def api_context(monkeypatch):
+def api_context(monkeypatch, tmp_path):
+    application = create_app(frontend_dir=tmp_path)
+    application.dependency_overrides[require_workspace] = lambda: "ws_test"
     payload = {
         "post_id": "post_test",
         "status": "matched",
@@ -39,7 +42,7 @@ def api_context(monkeypatch):
         recommendations, "rank_post_images", rank
     )
 
-    with TestClient(app) as client:
+    with TestClient(application) as client:
         yield client, rank, payload
 
 
@@ -54,18 +57,19 @@ def test_returns_ranked_images(api_context):
     assert response.status_code == 200
     assert response.json() == payload
     rank.assert_called_once_with(
-        tenant_id="demo",
+        tenant_id="ws_test",
         post_id="post_test",
         top=3,
     )
 
 
-def test_missing_tenant_header_is_rejected(api_context):
+def test_missing_authentication_is_rejected(api_context):
     client, rank, _ = api_context
+    del client.app.dependency_overrides[require_workspace]
 
     response = client.get("/posts/post_test/images")
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     rank.assert_not_called()
 
 
@@ -82,8 +86,9 @@ def test_invalid_top_is_rejected(api_context, top):
     rank.assert_not_called()
 
 
-def test_wrong_tenant_returns_generic_404(api_context):
+def test_other_workspace_returns_generic_404(api_context):
     client, rank, _ = api_context
+    client.app.dependency_overrides[require_workspace] = lambda: "ws_other"
     rank.side_effect = PostNotFoundError(
         "Post not found for this tenant."
     )
@@ -96,7 +101,7 @@ def test_wrong_tenant_returns_generic_404(api_context):
     assert response.status_code == 404
     assert response.json() == {"detail": "Post not found"}
     rank.assert_called_once_with(
-        tenant_id="different-tenant",
+        tenant_id="ws_other",
         post_id="post_test",
         top=5,
     )

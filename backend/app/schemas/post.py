@@ -34,3 +34,13 @@ def validate_post_corpus(data: object) -> list[PostInput]:
         raise ValueError("Post corpus contains duplicate IDs")
 
     return posts
+
+class PostCreate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    title: str = Field(min_length=1, max_length=300)
+    content: str = Field(min_length=1, max_length=10000)
+    required_subject: str = Field(min_length=1, max_length=200)

@@ -59,10 +59,10 @@ def test_unknown_api_does_not_return_frontend_html(frontend_client):
     "path",
     ["/posts", "/api/posts"],
 )
-def test_post_routes_still_require_tenant(frontend_client, path):
+def test_post_routes_require_authentication(frontend_client, path):
     response = frontend_client.get(path)
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     assert response.headers["content-type"].startswith(
         "application/json"
     )

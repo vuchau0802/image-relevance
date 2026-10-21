@@ -5,7 +5,8 @@ from app.models.ai_call import AICall
 from app.models.post import Post
 from app.models.embedding import ImageEmbedding, PostEmbedding
 from app.models.embedding_job import EmbeddingJob, EmbeddingJobItem
-from app.models.context import ImageContextRecord, PostContextRecord, PostContextRecord
+from app.models.context import ImageContextRecord, PostContextRecord
+from app.models.workspace import Workspace
 
 __all__ = [
     "Image",
@@ -22,4 +23,5 @@ __all__ = [
     "EmbeddingJobItem",
     "PostContextRecord",
     "ImageContextRecord",
+    "Workspace",
 ]

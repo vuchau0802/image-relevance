@@ -2,13 +2,13 @@ from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
-    Header,
     HTTPException,
     Path,
     Query,
 )
 from pydantic import BaseModel, Field
 
+from app.api.dependencies import CurrentWorkspace
 from app.services.ranking import (
     MissingPostEmbeddingError,
     PostNotFoundError,
@@ -58,14 +58,7 @@ def read_ranked_images(
         str,
         Path(min_length=1, max_length=50),
     ],
-    tenant_id: Annotated[
-        str,
-        Header(
-            alias="X-Tenant-ID",
-            min_length=1,
-            max_length=50,
-        ),
-    ],
+    tenant_id: CurrentWorkspace,
     top: Annotated[int, Query(ge=1, le=50)] = 5,
 ):
     if not tenant_id.strip() or not post_id.strip():

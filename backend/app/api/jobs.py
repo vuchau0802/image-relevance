@@ -1,8 +1,9 @@
-from typing import Annotated, Literal
+from typing import Literal
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.dependencies import CurrentWorkspace
 from app.repositories.jobs import get_job_summary
 
 
@@ -29,14 +30,7 @@ class JobSummary(BaseModel):
 @router.get("/{job_id}", response_model=JobSummary)
 def read_job(
     job_id: str,
-    tenant_id: Annotated[
-        str,
-        Header(
-            alias="X-Tenant-ID",
-            min_length=1,
-            max_length=50,
-        ),
-    ],
+    tenant_id: CurrentWorkspace,
 ):
     try:
         return get_job_summary(

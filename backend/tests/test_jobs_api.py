@@ -1,13 +1,20 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api import jobs as jobs_api
-from app.main import app
+from app.api.dependencies import require_workspace
+from app.main import create_app
 
 
-client = TestClient(app)
+@pytest.fixture
+def jobs_client(tmp_path):
+    application = create_app(frontend_dir=tmp_path)
+    application.dependency_overrides[require_workspace] = lambda: "ws_test"
+    with TestClient(application) as client:
+        yield client
 
 
-def test_job_status_uses_requested_tenant(monkeypatch):
+def test_job_status_uses_verified_workspace(monkeypatch, jobs_client):
     calls = []
 
     def fake_summary(tenant_id, job_id):
@@ -25,17 +32,18 @@ def test_job_status_uses_requested_tenant(monkeypatch):
 
     monkeypatch.setattr(jobs_api, "get_job_summary", fake_summary)
 
-    response = client.get(
+    response = jobs_client.get(
         "/jobs/test-job",
         headers={"X-Tenant-ID": "tenant-a"},
     )
 
     assert response.status_code == 200
     assert response.json()["pending"] == 2
-    assert calls == [("tenant-a", "test-job")]
+    assert calls == [("ws_test", "test-job")]
 
 
-def test_missing_tenant_header_is_rejected(monkeypatch):
+def test_missing_authentication_is_rejected(monkeypatch, jobs_client):
+    del jobs_client.app.dependency_overrides[require_workspace]
     def unexpected_lookup(**kwargs):
         raise AssertionError("Database lookup should not occur")
 
@@ -45,18 +53,19 @@ def test_missing_tenant_header_is_rejected(monkeypatch):
         unexpected_lookup,
     )
 
-    response = client.get("/jobs/test-job")
+    response = jobs_client.get("/jobs/test-job")
 
-    assert response.status_code == 422
+    assert response.status_code == 401
 
 
-def test_job_not_found_returns_404(monkeypatch):
+def test_job_not_found_returns_404(monkeypatch, jobs_client):
     def missing_job(tenant_id, job_id):
+        assert tenant_id == "ws_test"
         raise ValueError("Job not found for this tenant")
 
     monkeypatch.setattr(jobs_api, "get_job_summary", missing_job)
 
-    response = client.get(
+    response = jobs_client.get(
         "/jobs/test-job",
         headers={"X-Tenant-ID": "different-tenant"},
     )

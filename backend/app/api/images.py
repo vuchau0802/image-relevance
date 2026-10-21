@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import FileResponse
 
+from app.api.dependencies import CurrentWorkspace
 from app.database import SessionLocal
 from app.models import Image
 from app.schemas.image import ImageAttribution
@@ -18,14 +19,7 @@ def read_image_file(
         str,
         Path(min_length=1, max_length=50),
     ],
-    tenant_id: Annotated[
-        str,
-        Header(
-            alias="X-Tenant-ID",
-            min_length=1,
-            max_length=50,
-        ),
-    ],
+    tenant_id: CurrentWorkspace,
 ) -> FileResponse:
     if not tenant_id.strip() or not image_id.strip():
         raise HTTPException(
@@ -71,14 +65,7 @@ def read_image_attribution(
         str,
         Path(min_length=1, max_length=50),
     ],
-    tenant_id: Annotated[
-        str,
-        Header(
-            alias="X-Tenant-ID",
-            min_length=1,
-            max_length=50,
-        ),
-    ],
+    tenant_id: CurrentWorkspace,
 ) -> ImageAttribution:
     if not tenant_id.strip() or not image_id.strip():
         raise HTTPException(
