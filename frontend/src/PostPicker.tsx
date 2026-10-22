@@ -1,5 +1,5 @@
 import { useSessionToken } from './useSessionToken'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getPosts } from './api'
 import type { PostSummary } from './api'
 
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export default function PostPicker({ value, onSelect }: Props) {
+  const initialSelection = useRef(value)
   const getSessionToken = useSessionToken()
   const [posts, setPosts] = useState<PostSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +33,8 @@ export default function PostPicker({ value, onSelect }: Props) {
           setPosts(items)
 
           const initial =
-            items.find((post) => post.id === 'post_001') ?? items[0]
+            items.find((post) => post.id === initialSelection.current) ??
+            items[0]
 
           onSelect(initial?.id ?? '')
         }

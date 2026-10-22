@@ -89,3 +89,35 @@ export async function getPosts(
     offset = page.next_offset
   }
 }
+
+export interface PostCreateInput {
+  title: string
+  content: string
+  required_subject: string
+}
+
+export interface CreatedPost extends PostSummary {
+  content: string
+}
+
+export async function createPost(
+  payload: PostCreateInput,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<CreatedPost> {
+  const response = await apiFetch('/posts', signal, accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 422
+        ? 'Check the required fields and their lengths.'
+        : `Could not save the post (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}

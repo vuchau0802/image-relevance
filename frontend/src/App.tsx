@@ -5,10 +5,12 @@ import type { RankingResponse } from './api'
 import ImagePreview from './ImagePreview'
 import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
+import CreatePostForm from './CreatePostForm'
 
 function App() {
   const getSessionToken = useSessionToken()
   const [postId, setPostId] = useState('')
+  const [postsVersion, setPostsVersion] = useState(0)
   const [result, setResult] = useState<RankingResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -60,7 +62,18 @@ function App() {
       <h1>Image Relevance</h1>
       <p>Select a post to find suitable images.</p>
 
-      <PostPicker value={postId} onSelect={setPostId} />
+      <CreatePostForm
+        onCreated={(createdId) => {
+          setPostId(createdId)
+          setPostsVersion((version) => version + 1)
+        }}
+      />
+
+      <PostPicker
+        key={postsVersion}
+        value={postId}
+        onSelect={setPostId}
+      />
 
       <section aria-live="polite" aria-busy={loading}>
         {postId && loading && <p>Finding suitable images…</p>}

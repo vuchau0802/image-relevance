@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import App from './App'
-import { getPosts, getRecommendations } from './api'
+import { createPost, getPosts, getRecommendations } from './api'
 import type { RankingResponse } from './api'
 
 const { getSessionToken } = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ vi.mock('./useSessionToken', () => ({
 vi.mock('./api', () => ({
   getPosts: vi.fn(),
   getRecommendations: vi.fn(),
+  createPost: vi.fn(),
 }))
 
 // These tests focus on recommendations, not image fetching.
@@ -25,6 +26,7 @@ vi.mock('./ImageAttribution', () => ({ default: () => null }))
 
 const mockedPosts = vi.mocked(getPosts)
 const mockedRecommendations = vi.mocked(getRecommendations)
+const mockedCreatePost = vi.mocked(createPost)
 
 function ranking(
   postId: string,
@@ -52,7 +54,7 @@ beforeEach(() => {
   getSessionToken.mockResolvedValue('synthetic-session-token')
   mockedPosts.mockReset()
   mockedRecommendations.mockReset()
-
+  mockedCreatePost.mockReset()
   mockedPosts.mockResolvedValue([
     {
       id: 'post_001',
@@ -180,4 +182,73 @@ test('ignores an old response after switching posts', async () => {
   ).not.toBeInTheDocument()
 
   expect(screen.queryByRole('article')).not.toBeInTheDocument()
+})
+
+test('saving a post refreshes the dropdown and selects it', async () => {
+  const user = userEvent.setup()
+
+  const existing = {
+    id: 'post_001',
+    title: 'Existing post',
+    required_subject: 'red fox',
+  }
+
+  const created = {
+    id: 'post_created',
+    title: 'New private fox article',
+    content: 'An article about urban red foxes.',
+    required_subject: 'red fox',
+  }
+
+  mockedPosts
+    .mockResolvedValueOnce([existing])
+    .mockResolvedValue([existing, created])
+
+  mockedCreatePost.mockResolvedValue(created)
+
+  mockedRecommendations.mockImplementation((postId) =>
+    Promise.resolve(ranking(postId, false)),
+  )
+
+  render(<App />)
+
+  expect(
+    await screen.findByRole('option', { name: 'Existing post' }),
+  ).toBeInTheDocument()
+
+  await user.type(
+    screen.getByRole('textbox', { name: 'Title' }),
+    created.title,
+  )
+  await user.type(
+    screen.getByRole('textbox', { name: 'Content' }),
+    created.content,
+  )
+  await user.type(
+    screen.getByRole('textbox', { name: 'Required subject' }),
+    created.required_subject,
+  )
+
+  await user.click(
+    screen.getByRole('button', { name: 'Save post' }),
+  )
+
+  expect(
+    await screen.findByRole('option', { name: created.title }),
+  ).toBeInTheDocument()
+
+  expect(
+    screen.getByRole('combobox', { name: 'Blog post' }),
+  ).toHaveValue(created.id)
+
+  expect(mockedCreatePost).toHaveBeenCalledOnce()
+  expect(mockedPosts).toHaveBeenCalledTimes(2)
+
+  await waitFor(() => {
+    expect(mockedRecommendations).toHaveBeenLastCalledWith(
+      created.id,
+      expect.any(AbortSignal),
+      'synthetic-session-token',
+    )
+  })
 })
