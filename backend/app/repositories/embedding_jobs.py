@@ -1,7 +1,8 @@
 from uuid import uuid4
 from dataclasses import dataclass
 from datetime import timedelta
-
+import hashlib
+import json
 from app.schemas.embedding import EmbeddingCacheKey
 from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert
@@ -631,3 +632,102 @@ def release_unstarted_embedding_claim(
 
         # Preserve last_error from an earlier genuine attempt.
         _refresh_embedding_job(session, job, now)
+
+class EmbeddingPostNotFoundError(LookupError):
+    pass
+
+
+def create_post_embedding_job(
+    tenant_id: str,
+    post_id: str,
+) -> str:
+    if (
+        not isinstance(tenant_id, str)
+        or not tenant_id.strip()
+        or len(tenant_id) > 50
+    ):
+        raise ValueError("Invalid tenant_id")
+
+    if (
+        not isinstance(post_id, str)
+        or not post_id.strip()
+        or len(post_id) > 50
+    ):
+        raise ValueError("Invalid post_id")
+
+    settings = get_settings()
+
+    with SessionLocal.begin() as session:
+        record = session.get(Post, (tenant_id, post_id))
+
+        if record is None:
+            raise EmbeddingPostNotFoundError(
+                "Post not found for this workspace"
+            )
+
+        prepared = prepare_post_input(
+            PostInput(
+                id=record.id,
+                title=record.title,
+                content=record.content,
+                required_subject=record.required_subject,
+            )
+        )
+
+        identity = json.dumps(
+            {
+                "post_id": post_id,
+                "input_hash": prepared.input_hash,
+                "model": settings.embedding_model,
+                "dimensions": settings.embedding_dimensions,
+                "task_type": EMBEDDING_TASK_TYPE,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        digest = hashlib.sha256(
+            identity.encode("utf-8")
+        ).hexdigest()
+        idempotency_key = f"post-embedding-v1:{digest}"
+
+        inserted_id = session.execute(
+            insert(EmbeddingJob)
+            .values(
+                tenant_id=tenant_id,
+                id=str(uuid4()),
+                idempotency_key=idempotency_key,
+                model=settings.embedding_model,
+                dimensions=settings.embedding_dimensions,
+                task_type=EMBEDDING_TASK_TYPE,
+                status="queued",
+            )
+            .on_conflict_do_nothing(
+                constraint="uq_embedding_jobs_tenant_idempotency",
+            )
+            .returning(EmbeddingJob.id)
+        ).scalar_one_or_none()
+
+        if inserted_id is None:
+            return session.scalar(
+                select(EmbeddingJob.id).where(
+                    EmbeddingJob.tenant_id == tenant_id,
+                    EmbeddingJob.idempotency_key == idempotency_key,
+                )
+            )
+
+        session.add(
+            EmbeddingJobItem(
+                tenant_id=tenant_id,
+                id=str(uuid4()),
+                job_id=inserted_id,
+                source_type="post",
+                source_id=post_id,
+                input_text=prepared.text,
+                input_hash=prepared.input_hash,
+                status="pending",
+                attempts=0,
+                max_attempts=3,
+            )
+        )
+
+    return inserted_id

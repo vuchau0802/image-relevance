@@ -9,6 +9,7 @@ from app.api.posts import router as posts_router
 from app.api.recommendations import router as recommendations_router
 from app.config import PROJECT_ROOT
 from app.api.auth import router as auth_router
+from app.api.embedding_jobs import router as embedding_jobs_router
 
 def create_app(frontend_dir: Path | None = None) -> FastAPI:
     application = FastAPI(
@@ -22,6 +23,7 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
         images_router,
         posts_router,
         auth_router,
+        embedding_jobs_router,
     )
 
     for router in routers:

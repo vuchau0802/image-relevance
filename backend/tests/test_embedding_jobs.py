@@ -1028,3 +1028,148 @@ def test_worker_cache_miss_persists_embedding_and_audit(
     ctx.client_factory.assert_called_once()
     client.models.embed_content.assert_called_once()
     client.close.assert_called_once()
+
+def test_single_post_job_contains_only_selected_post(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    with ctx.factory.begin() as session:
+        session.add(Post(
+            tenant_id=tenant,
+            id="another-post",
+            title="Another article",
+            content="Another red fox article.",
+            required_subject="red fox",
+        ))
+
+    job_id = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+    items = read_items(ctx.factory, tenant, job_id)
+
+    assert len(items) == 1
+    item = items[0]
+    assert item.source_type == "post"
+    assert item.source_id == "shared-post"
+    assert item.status == "pending"
+    assert item.attempts == 0
+    assert item.input_hash == hashlib.sha256(
+        item.input_text.encode("utf-8")
+    ).hexdigest()
+
+    with ctx.factory() as session:
+        job = session.get(EmbeddingJob, (tenant, job_id))
+        assert job.status == "queued"
+        assert job.model == ctx.settings.embedding_model
+        assert job.dimensions == ctx.settings.embedding_dimensions
+
+
+def test_single_post_job_reuses_identical_request(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+    second = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+
+    assert second == first
+    assert len(read_items(ctx.factory, tenant, first)) == 1
+
+
+def test_single_post_job_rejects_other_workspace_post(job_database):
+    ctx = job_database
+    owner, other = ctx.tenants
+
+    with ctx.factory.begin() as session:
+        session.add(Post(
+            tenant_id=owner,
+            id="owner-only",
+            title="Private article",
+            content="Private red fox content.",
+            required_subject="red fox",
+        ))
+
+    with pytest.raises(repository.EmbeddingPostNotFoundError):
+        repository.create_post_embedding_job(other, "owner-only")
+
+    with ctx.factory() as session:
+        assert session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == other
+            )
+        ).all() == []
+
+
+def test_single_post_job_rejects_missing_post(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    with pytest.raises(repository.EmbeddingPostNotFoundError):
+        repository.create_post_embedding_job(tenant, "missing-post")
+
+    with ctx.factory() as session:
+        assert session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == tenant
+            )
+        ).all() == []
+
+
+def test_single_post_change_creates_new_snapshot(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+    original = read_items(ctx.factory, tenant, first)[0]
+
+    with ctx.factory.begin() as session:
+        post = session.get(Post, (tenant, "shared-post"))
+        post.content = "Updated article about a fox family."
+
+    second = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+    updated = read_items(ctx.factory, tenant, second)[0]
+
+    assert second != first
+    assert updated.input_hash != original.input_hash
+    assert "Updated article" in updated.input_text
+    assert read_items(
+        ctx.factory, tenant, first
+    )[0].input_text == original.input_text
+
+
+@pytest.mark.parametrize(
+    "setting,new_value",
+    [
+        ("embedding_model", "another-test-model"),
+        ("embedding_dimensions", 3),
+    ],
+)
+def test_single_post_configuration_change_creates_new_job(
+    job_database, setting, new_value
+):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+
+    setattr(ctx.settings, setting, new_value)
+
+    second = repository.create_post_embedding_job(
+        tenant, "shared-post"
+    )
+
+    assert second != first
+
+    with ctx.factory() as session:
+        job = session.get(EmbeddingJob, (tenant, second))
+        assert job.model == ctx.settings.embedding_model
+        assert job.dimensions == ctx.settings.embedding_dimensions

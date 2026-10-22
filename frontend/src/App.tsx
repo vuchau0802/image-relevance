@@ -6,6 +6,7 @@ import ImagePreview from './ImagePreview'
 import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
 import CreatePostForm from './CreatePostForm'
+import PreparePost from './PreparePost'
 
 function App() {
   const getSessionToken = useSessionToken()
@@ -77,7 +78,13 @@ function App() {
 
       <section aria-live="polite" aria-busy={loading}>
         {postId && loading && <p>Finding suitable images…</p>}
-
+        {postId && (
+        <PreparePost
+          key={postId}
+          postId={postId}
+          onReady={() => setRetry((value) => value + 1)}
+        />
+        )}
         {postId && error && (
           <div role="alert">
             <p>{error}</p>

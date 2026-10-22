@@ -121,3 +121,66 @@ export async function createPost(
 
   return response.json()
 }
+
+export interface EmbeddingJob {
+  job_id: string
+  status:
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'completed_with_errors'
+    | 'failed'
+  model: string
+  dimensions: number
+  task_type: string
+  total: number
+  pending: number
+  processing: number
+  completed: number
+  failed: number
+}
+
+export async function preparePostEmbedding(
+  postId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<EmbeddingJob> {
+  const response = await apiFetch(
+    `/posts/${encodeURIComponent(postId)}/embedding-job`,
+    signal,
+    accessToken,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Post not found.'
+        : `Could not prepare this post (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}
+
+export async function getEmbeddingJob(
+  jobId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<EmbeddingJob> {
+  const response = await apiFetch(
+    `/embedding-jobs/${encodeURIComponent(jobId)}`,
+    signal,
+    accessToken,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Preparation job not found.'
+        : `Could not load preparation progress (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}
