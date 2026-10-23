@@ -7,6 +7,7 @@ import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
 import CreatePostForm from './CreatePostForm'
 import PreparePost from './PreparePost'
+import UploadImageForm from './UploadImageForm'
 
 function App() {
   const getSessionToken = useSessionToken()
@@ -62,7 +63,7 @@ function App() {
     <main style={{ maxWidth: 900, margin: '40px auto', padding: 24 }}>
       <h1>Image Relevance</h1>
       <p>Select a post to find suitable images.</p>
-
+      <UploadImageForm />
       <CreatePostForm
         onCreated={(createdId) => {
           setPostId(createdId)
@@ -85,6 +86,7 @@ function App() {
           onReady={() => setRetry((value) => value + 1)}
         />
         )}
+
         {postId && error && (
           <div role="alert">
             <p>{error}</p>

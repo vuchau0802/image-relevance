@@ -11,6 +11,7 @@ __pycache__/
 # Data
 /data/ai_calls.jsonl
 /data/processed/
+/data/uploads/
 
 # Frontend
 node_modules/

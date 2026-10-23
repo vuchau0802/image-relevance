@@ -184,3 +184,49 @@ export async function getEmbeddingJob(
 
   return response.json()
 }
+
+export interface ImageUploadResult {
+  image_id: string
+  status:
+    | 'pending'
+    | 'processing'
+    | 'completed'
+    | 'needs_review'
+    | 'failed'
+}
+
+export async function uploadImage(
+  file: File,
+  creator: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<ImageUploadResult> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('creator', creator.trim())
+
+  const response = await apiFetch(
+    '/images',
+    signal,
+    accessToken,
+    {
+      method: 'POST',
+      body: form,
+    },
+  )
+
+  if (!response.ok) {
+    const message =
+      response.status === 413
+        ? 'The upload is too large. Choose a JPEG under 10 MiB.'
+        : response.status === 422
+          ? 'Choose a valid JPEG up to 20 million pixels and provide its creator.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not upload the image (${response.status}).`
+
+    throw new Error(message)
+  }
+
+  return response.json()
+}

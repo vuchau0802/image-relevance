@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, File, Form, HTTPException, Path, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import CurrentWorkspace
@@ -8,9 +8,14 @@ from app.database import SessionLocal
 from app.models import Image
 from app.schemas.image import ImageAttribution
 from app.services.image_files import verify_registered_image
+from starlette.concurrency import run_in_threadpool
 
+from app.schemas.upload import ImageUploadResponse, MAX_UPLOAD_BYTES
+from app.services.upload_validation import InvalidImageUploadError
+from app.services.uploads import create_uploaded_image
+from app.api.upload_limits import UploadLimitRoute
 
-router = APIRouter(prefix="/images", tags=["images"])
+router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
 
 @router.get("/{image_id}/file", response_class=FileResponse)
@@ -40,7 +45,7 @@ def read_image_file(
         checksum = record.checksum
 
     try:
-        path = verify_registered_image(file_path, checksum)
+        path = verify_registered_image(file_path, checksum, tenant_id=tenant_id)
     except (ValueError, OSError):
         raise HTTPException(
             status_code=404,
@@ -88,3 +93,45 @@ def read_image_attribution(
             source_url=record.source_url,
             license_url=record.license_url,
         )
+
+
+@router.post(
+    "",
+    response_model=ImageUploadResponse,
+    status_code=201,
+)
+async def upload_image(
+    tenant_id: CurrentWorkspace,
+    file: Annotated[UploadFile, File()],
+    creator: Annotated[str, Form(min_length=1, max_length=200)],
+) -> ImageUploadResponse:
+    try:
+        creator = creator.strip()
+        if not creator:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide the image creator's name",
+            )
+
+        data = await file.read(MAX_UPLOAD_BYTES + 1)
+
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="The image exceeds the 10 MiB upload limit",
+            )
+
+        try:
+            return await run_in_threadpool(
+                create_uploaded_image,
+                tenant_id=tenant_id,
+                data=data,
+                creator=creator,
+            )
+        except InvalidImageUploadError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=str(error),
+            ) from None
+    finally:
+        await file.close()

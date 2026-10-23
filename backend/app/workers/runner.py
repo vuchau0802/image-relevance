@@ -20,7 +20,7 @@ from app.repositories.usage import VisionBudgetExceededError
 from app.services.image_files import verify_registered_image
 
 def verify_file(claimed):
-    return verify_registered_image(claimed.file_path, claimed.checksum)
+    return verify_registered_image(claimed.file_path, claimed.checksum, tenant_id=claimed.tenant_id)
 
 
 def process_claim(claimed, settings):

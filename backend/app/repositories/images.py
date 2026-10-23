@@ -27,5 +27,5 @@ def save_classification(
                 f"Image not registered for this tenant: {image_id}"
             )
 
-        verify_registered_image(image.file_path, image.checksum)
+        verify_registered_image(image.file_path, image.checksum, tenant_id=tenant_id)
         persist_classification(session, image, result, vision_model)
