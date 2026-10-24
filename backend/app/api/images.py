@@ -14,6 +14,13 @@ from app.schemas.upload import ImageUploadResponse, MAX_UPLOAD_BYTES
 from app.services.upload_validation import InvalidImageUploadError
 from app.services.uploads import create_uploaded_image
 from app.api.upload_limits import UploadLimitRoute
+from app.api.jobs import JobSummary
+from app.repositories.jobs import (
+    ImageNotProcessableError,
+    ProcessingImageNotFoundError,
+    create_image_processing_job,
+    get_job_summary,
+)
 
 router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
@@ -135,3 +142,38 @@ async def upload_image(
             ) from None
     finally:
         await file.close()
+
+@router.post(
+    "/{image_id}/analysis-job",
+    response_model=JobSummary,
+    status_code=202,
+)
+def prepare_image_analysis(
+    image_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    tenant_id: CurrentWorkspace,
+) -> JobSummary:
+    try:
+        job_id = create_image_processing_job(
+            tenant_id=tenant_id,
+            image_id=image_id,
+        )
+    except ProcessingImageNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found",
+        ) from None
+    except ImageNotProcessableError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from None
+
+    return JobSummary.model_validate(
+        get_job_summary(
+            tenant_id=tenant_id,
+            job_id=job_id,
+        )
+    )

@@ -4,6 +4,7 @@ import type { FormEvent } from 'react'
 import { uploadImage } from './api'
 import type { ImageUploadResult } from './api'
 import { useSessionToken } from './useSessionToken'
+import AnalyzeImage from './AnalyzeImage'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -133,6 +134,13 @@ export default function UploadImageForm() {
               </p>
             )}
           </div>
+        )}
+
+        {result && (
+          <AnalyzeImage
+            key={result.image_id}
+            imageId={result.image_id}
+          />
         )}
       </form>
     </section>

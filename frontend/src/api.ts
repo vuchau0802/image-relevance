@@ -230,3 +230,70 @@ export async function uploadImage(
 
   return response.json()
 }
+
+export interface ImageAnalysisJob {
+  job_id: string
+  status:
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'completed_with_errors'
+    | 'failed'
+  total: number
+  pending: number
+  processing: number
+  completed: number
+  needs_review: number
+  failed: number
+}
+
+export async function startImageAnalysis(
+  imageId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<ImageAnalysisJob> {
+  const response = await apiFetch(
+    `/images/${encodeURIComponent(imageId)}/analysis-job`,
+    signal,
+    accessToken,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Image not found.'
+        : response.status === 409
+          ? 'This image cannot start a new analysis job.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not start image analysis (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}
+
+export async function getImageAnalysisJob(
+  jobId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<ImageAnalysisJob> {
+  const response = await apiFetch(
+    `/jobs/${encodeURIComponent(jobId)}`,
+    signal,
+    accessToken,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Analysis job not found.'
+        : response.status === 401
+          ? 'Please sign in again.'
+          : `Could not load analysis progress (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}

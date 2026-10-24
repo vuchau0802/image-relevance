@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-
+import hashlib
 from sqlalchemy import exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 
@@ -500,3 +500,97 @@ def release_unstarted_claim(claimed: ClaimedItem) -> None:
         image.status = "pending"
 
         refresh_job_status(session, job)
+
+class ProcessingImageNotFoundError(LookupError):
+    pass
+
+
+class ImageNotProcessableError(ValueError):
+    pass
+
+
+def create_image_processing_job(
+    tenant_id: str,
+    image_id: str,
+) -> str:
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise ValueError("Invalid workspace identifier")
+
+    if not isinstance(image_id, str) or not image_id.strip():
+        raise ValueError("Invalid image identifier")
+
+    with SessionLocal.begin() as session:
+        image = session.scalar(
+            select(Image)
+            .where(
+                Image.tenant_id == tenant_id,
+                Image.id == image_id,
+            )
+            .with_for_update()
+        )
+
+        if image is None:
+            raise ProcessingImageNotFoundError(
+                "Image not found for this workspace"
+            )
+
+        # Reuse work already queued by another processing entry point.
+        active_job_id = session.scalar(
+            select(JobItem.job_id)
+            .where(
+                JobItem.tenant_id == tenant_id,
+                JobItem.image_id == image_id,
+                JobItem.status.in_(["pending", "processing"]),
+            )
+            .order_by(JobItem.created_at)
+            .limit(1)
+        )
+
+        if active_job_id is not None:
+            return active_job_id
+
+        identity = f"{image.id}:{image.checksum}"
+        digest = hashlib.sha256(
+            identity.encode("utf-8")
+        ).hexdigest()
+        idempotency_key = f"image-analysis-v1:{digest}"
+
+        existing_job_id = session.scalar(
+            select(Job.id).where(
+                Job.tenant_id == tenant_id,
+                Job.idempotency_key == idempotency_key,
+            )
+        )
+
+        if existing_job_id is not None:
+            return existing_job_id
+
+        if image.status != "pending":
+            raise ImageNotProcessableError(
+                "Only pending images can start a new analysis job"
+            )
+
+        job = Job(
+            tenant_id=tenant_id,
+            id=str(uuid4()),
+            idempotency_key=idempotency_key,
+            status="queued",
+        )
+        session.add(job)
+        session.flush()
+
+        session.add(
+            JobItem(
+                tenant_id=tenant_id,
+                id=str(uuid4()),
+                job_id=job.id,
+                image_id=image_id,
+                status="pending",
+                attempts=0,
+                max_attempts=3,
+            )
+        )
+
+        job_id = job.id
+
+    return job_id
