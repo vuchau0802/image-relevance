@@ -21,6 +21,13 @@ from app.repositories.jobs import (
     create_image_processing_job,
     get_job_summary,
 )
+from app.repositories.embedding_jobs import (
+    EmbeddingImageNotFoundError,
+    EmbeddingImageNotReadyError,
+    create_image_embedding_job,
+    get_embedding_job_summary,
+)
+from app.schemas.embedding_job import EmbeddingJobResponse
 
 router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
@@ -173,6 +180,41 @@ def prepare_image_analysis(
 
     return JobSummary.model_validate(
         get_job_summary(
+            tenant_id=tenant_id,
+            job_id=job_id,
+        )
+    )
+
+@router.post(
+    "/{image_id}/embedding-job",
+    response_model=EmbeddingJobResponse,
+    status_code=202,
+)
+def prepare_image_embedding(
+    image_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    tenant_id: CurrentWorkspace,
+) -> EmbeddingJobResponse:
+    try:
+        job_id = create_image_embedding_job(
+            tenant_id=tenant_id,
+            image_id=image_id,
+        )
+    except EmbeddingImageNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found",
+        ) from None
+    except EmbeddingImageNotReadyError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from None
+
+    return EmbeddingJobResponse.model_validate(
+        get_embedding_job_summary(
             tenant_id=tenant_id,
             job_id=job_id,
         )

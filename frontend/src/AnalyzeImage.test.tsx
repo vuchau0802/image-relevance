@@ -75,7 +75,7 @@ test('reports completed analysis without claiming matching is ready', async () =
     'Image embedding preparation is still required before matching.',
   )
   expect(mockedProgress).not.toHaveBeenCalled()
-  expect(screen.getByRole('button')).toBeEnabled()
+  expect(screen.getByRole('button', { name: /^Analy/ })).toBeEnabled()
 })
 
 test('polls queued and running jobs until completion', async () => {
@@ -91,7 +91,7 @@ test('polls queued and running jobs until completion', async () => {
     await clickAnalyze()
 
     expect(screen.getByRole('status')).toHaveTextContent('queued')
-    expect(screen.getByRole('button')).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^Analy/ })).toBeDisabled()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
@@ -157,7 +157,7 @@ test.each(['failed', 'completed_with_errors'] as const)(
       'Analysis did not complete successfully.',
     )
     expect(mockedProgress).not.toHaveBeenCalled()
-    expect(screen.getByRole('button')).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^Analy/ })).toBeEnabled()
   },
 )
 
@@ -192,7 +192,7 @@ test('blocks duplicate submissions and aborts on unmount', async () => {
   const view = render(<AnalyzeImage imageId="img_test" />)
 
   await act(async () => {
-    const button = screen.getByRole('button')
+    const button = screen.getByRole('button', { name: /^Analy/ })
     fireEvent.click(button)
     fireEvent.click(button)
   })

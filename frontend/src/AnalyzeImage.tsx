@@ -5,6 +5,7 @@ import {
 } from './api'
 import type { ImageAnalysisJob } from './api'
 import { useSessionToken } from './useSessionToken'
+import PrepareImage from './PrepareImage'
 
 function waitForPoll(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -148,6 +149,14 @@ export default function AnalyzeImage({
       )}
 
       {error && <p role="alert">{error}</p>}
+
+      {!busy &&
+        job?.status === 'completed' &&
+        job.completed > 0 &&
+        job.needs_review === 0 &&
+        job.failed === 0 && (
+          <PrepareImage key={imageId} imageId={imageId} />
+        )}
     </section>
   )
 }

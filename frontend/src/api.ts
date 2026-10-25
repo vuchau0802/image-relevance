@@ -297,3 +297,30 @@ export async function getImageAnalysisJob(
 
   return response.json()
 }
+
+export async function prepareImageEmbedding(
+  imageId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<EmbeddingJob> {
+  const response = await apiFetch(
+    `/images/${encodeURIComponent(imageId)}/embedding-job`,
+    signal,
+    accessToken,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Image not found.'
+        : response.status === 409
+          ? 'Complete image analysis before preparing it for matching.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not prepare this image (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}

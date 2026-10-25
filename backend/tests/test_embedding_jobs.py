@@ -1173,3 +1173,193 @@ def test_single_post_configuration_change_creates_new_job(
         job = session.get(EmbeddingJob, (tenant, second))
         assert job.model == ctx.settings.embedding_model
         assert job.dimensions == ctx.settings.embedding_dimensions
+
+def test_single_image_job_contains_only_selected_image(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    job_id = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+    items = read_items(ctx.factory, tenant, job_id)
+
+    assert len(items) == 1
+    item = items[0]
+    assert item.source_type == "image"
+    assert item.source_id == "shared-image"
+    assert item.status == "pending"
+    assert item.attempts == 0
+    assert item.max_attempts == 3
+    assert item.input_hash == hashlib.sha256(
+        item.input_text.encode("utf-8")
+    ).hexdigest()
+
+    with ctx.factory() as session:
+        job = session.get(EmbeddingJob, (tenant, job_id))
+        assert job.status == "queued"
+        assert job.model == ctx.settings.embedding_model
+        assert job.dimensions == ctx.settings.embedding_dimensions
+
+
+def test_single_image_embedding_request_reuses_job(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+    original_id = read_items(ctx.factory, tenant, first)[0].id
+
+    second = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+
+    assert second == first
+    items = read_items(ctx.factory, tenant, second)
+    assert len(items) == 1
+    assert items[0].id == original_id
+
+
+@pytest.mark.parametrize("case", ["missing", "other-owner"])
+def test_missing_or_unowned_image_cannot_be_embedded(
+    job_database, case
+):
+    ctx = job_database
+
+    if case == "missing":
+        tenant = ctx.tenants[0]
+        image_id = "missing-image"
+    else:
+        tenant = ctx.tenants[1]
+        image_id = "shared-image"
+
+        # Keep the first owner's image; remove the second owner's copy.
+        with ctx.factory.begin() as session:
+            session.delete(
+                session.get(Image, (tenant, image_id))
+            )
+
+    with pytest.raises(repository.EmbeddingImageNotFoundError):
+        repository.create_image_embedding_job(tenant, image_id)
+
+    with ctx.factory() as session:
+        assert session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == tenant
+            )
+        ).all() == []
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["pending", "processing", "needs_review", "failed"],
+)
+def test_unfinished_image_analysis_blocks_embedding(
+    job_database, status
+):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    with ctx.factory.begin() as session:
+        image = session.get(Image, (tenant, "shared-image"))
+        image.status = status
+
+    with pytest.raises(repository.EmbeddingImageNotReadyError):
+        repository.create_image_embedding_job(
+            tenant, "shared-image"
+        )
+
+    with ctx.factory() as session:
+        assert session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == tenant
+            )
+        ).all() == []
+
+
+def test_image_without_metadata_cannot_be_embedded(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    with ctx.factory.begin() as session:
+        session.delete(
+            session.get(
+                ImageMetadataRecord,
+                (tenant, "shared-image"),
+            )
+        )
+
+    with pytest.raises(
+        repository.EmbeddingImageNotReadyError,
+        match="metadata",
+    ):
+        repository.create_image_embedding_job(
+            tenant, "shared-image"
+        )
+
+    with ctx.factory() as session:
+        assert session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == tenant
+            )
+        ).all() == []
+
+
+def test_changed_image_metadata_creates_new_snapshot(job_database):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+    original = read_items(ctx.factory, tenant, first)[0]
+
+    with ctx.factory.begin() as session:
+        metadata = session.get(
+            ImageMetadataRecord,
+            (tenant, "shared-image"),
+        )
+        metadata.caption = "A red fox resting beside a tree."
+
+    second = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+    updated = read_items(ctx.factory, tenant, second)[0]
+
+    assert second != first
+    assert updated.input_hash != original.input_hash
+    assert "resting beside a tree" in updated.input_text
+    assert read_items(
+        ctx.factory, tenant, first
+    )[0].input_text == original.input_text
+
+
+@pytest.mark.parametrize(
+    "setting,new_value",
+    [
+        ("embedding_model", "another-test-model"),
+        ("embedding_dimensions", 3),
+    ],
+)
+def test_image_embedding_configuration_changes_create_new_job(
+    job_database, setting, new_value
+):
+    ctx = job_database
+    tenant = ctx.tenants[0]
+
+    first = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+
+    setattr(ctx.settings, setting, new_value)
+
+    second = repository.create_image_embedding_job(
+        tenant, "shared-image"
+    )
+
+    assert second != first
+
+    with ctx.factory() as session:
+        job = session.get(EmbeddingJob, (tenant, second))
+        assert job.model == ctx.settings.embedding_model
+        assert job.dimensions == ctx.settings.embedding_dimensions
