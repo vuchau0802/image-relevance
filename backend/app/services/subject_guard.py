@@ -57,6 +57,12 @@ SUBJECT_GROUPS = {
     "vegetable salad": {
         "vegetable salad",
     },
+    "forest": {
+        "forest",
+        "forests",
+        "woodland",
+        "woodlands",
+    },
     "yosemite waterfall": {
         "yosemite waterfall",
     },
@@ -84,6 +90,7 @@ EXPECTED_CATEGORIES = {
     "motor scooter": "vehicle",
     "pizza": "food",
     "vegetable salad": "food",
+    "forest": "landscape",
     "yosemite waterfall": "landscape",
 }
 

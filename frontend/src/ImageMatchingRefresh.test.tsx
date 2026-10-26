@@ -22,6 +22,7 @@ vi.mock('./useSessionToken', () => ({
 }))
 
 vi.mock('./api', () => ({
+  getImagesPage: vi.fn(),
   getPosts: vi.fn(),
   getRecommendations: vi.fn(),
   createPost: vi.fn(),
@@ -73,6 +74,10 @@ function ranking(matched: boolean): RankingResponse {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocked.getImagesPage.mockResolvedValue({
+    items: [],
+    next_offset: null,
+  })
   getSessionToken.mockResolvedValue('synthetic-token')
 
   mocked.getPosts.mockResolvedValue([{
@@ -205,4 +210,57 @@ test('completion after unmount does not notify App', async () => {
   })
 
   expect(onReady).not.toHaveBeenCalled()
+})
+
+test('successful upload refreshes the library without reranking the post', async () => {
+  const user = userEvent.setup()
+
+  mocked.getImagesPage
+    .mockResolvedValueOnce({
+      items: [],
+      next_offset: null,
+    })
+    .mockResolvedValue({
+      items: [{
+        image_id: 'img_uploaded',
+        status: 'pending',
+        creator: 'Example creator',
+        created_at: '2026-01-01T00:00:00Z',
+      }],
+      next_offset: null,
+    })
+
+  render(<App />)
+
+  await screen.findByText('No images uploaded yet.')
+  await screen.findByRole('heading', { name: 'No confident match' })
+
+  await user.upload(
+    screen.getByLabelText('JPEG image'),
+    new File(['synthetic JPEG'], 'fox.jpg', {
+      type: 'image/jpeg',
+    }),
+  )
+  await user.type(
+    screen.getByRole('textbox', { name: 'Image creator' }),
+    'Example creator',
+  )
+
+  await act(async () => {
+    fireEvent.submit(
+      screen.getByRole('form', { name: 'Upload image' }),
+    )
+  })
+
+  expect(
+    await screen.findByRole('article', {
+      name: 'Uploaded image img_uploaded',
+    }),
+  ).toBeInTheDocument()
+
+  expect(mocked.getImagesPage).toHaveBeenCalledTimes(2)
+  expect(mocked.getRecommendations).toHaveBeenCalledOnce()
+  expect(
+    screen.getByRole('combobox', { name: 'Blog post' }),
+  ).toHaveValue('post_test')
 })

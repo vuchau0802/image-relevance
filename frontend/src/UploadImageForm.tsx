@@ -10,8 +10,10 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 export default function UploadImageForm({
   onImageReady,
+  onUploaded,
 }: {
   onImageReady?: () => void
+  onUploaded?: () => void
 }) {
   const getSessionToken = useSessionToken()
   const activeRequest = useRef<AbortController | null>(null)
@@ -70,6 +72,7 @@ export default function UploadImageForm({
         form.reset()
         fileInput.value = ''
         setResult(uploaded)
+        onUploaded?.()
       }
     } catch (error) {
       if (!controller.signal.aborted) {

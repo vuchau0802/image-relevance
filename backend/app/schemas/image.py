@@ -1,5 +1,5 @@
 from typing import Annotated, Literal
-
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,3 +23,20 @@ class ImageAttribution(BaseModel):
     creator: str
     source_url: str
     license_url: str
+
+class ImageListItem(BaseModel):
+    image_id: str
+    status: Literal[
+        "pending",
+        "processing",
+        "completed",
+        "needs_review",
+        "failed",
+    ]
+    creator: str
+    created_at: datetime
+
+
+class ImageListResponse(BaseModel):
+    items: list[ImageListItem]
+    next_offset: int | None

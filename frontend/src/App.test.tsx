@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import App from './App'
-import { createPost, getPosts, getRecommendations } from './api'
+import { createPost, getImagesPage, getPosts, getRecommendations } from './api'
 import type { RankingResponse } from './api'
 
 const { getSessionToken } = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ vi.mock('./useSessionToken', () => ({
 }))
 
 vi.mock('./api', () => ({
+  getImagesPage: vi.fn(),
   getPosts: vi.fn(),
   getRecommendations: vi.fn(),
   createPost: vi.fn(),
@@ -50,6 +51,11 @@ function ranking(
 }
 
 beforeEach(() => {
+  vi.mocked(getImagesPage).mockReset()
+  vi.mocked(getImagesPage).mockResolvedValue({
+    items: [],
+    next_offset: null,
+  })
   getSessionToken.mockReset()
   getSessionToken.mockResolvedValue('synthetic-session-token')
   mockedPosts.mockReset()

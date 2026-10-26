@@ -324,3 +324,53 @@ export async function prepareImageEmbedding(
 
   return response.json()
 }
+
+export interface ImageLibraryItem {
+  image_id: string
+  status: ImageUploadResult['status']
+  creator: string
+  created_at: string
+}
+
+export interface ImageLibraryPage {
+  items: ImageLibraryItem[]
+  next_offset: number | null
+}
+
+export async function getImagesPage(
+  offset: number,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<ImageLibraryPage> {
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error('Invalid image page offset.')
+  }
+
+  const response = await apiFetch(
+    `/images?offset=${offset}&limit=12`,
+    signal,
+    accessToken,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401
+        ? 'Please sign in again.'
+        : `Could not load your images (${response.status}).`,
+    )
+  }
+
+  const page: ImageLibraryPage = await response.json()
+
+  if (
+    page.next_offset !== null &&
+    (
+      !Number.isInteger(page.next_offset) ||
+      page.next_offset <= offset
+    )
+  ) {
+    throw new Error('The image list returned an invalid next page.')
+  }
+
+  return page
+}

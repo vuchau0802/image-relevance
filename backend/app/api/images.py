@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Path, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import CurrentWorkspace
@@ -28,6 +28,8 @@ from app.repositories.embedding_jobs import (
     get_embedding_job_summary,
 )
 from app.schemas.embedding_job import EmbeddingJobResponse
+from app.repositories.images import list_images
+from app.schemas.image import ImageListResponse
 
 router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
@@ -218,4 +220,16 @@ def prepare_image_embedding(
             tenant_id=tenant_id,
             job_id=job_id,
         )
+    )
+
+@router.get("", response_model=ImageListResponse)
+def read_images(
+    tenant_id: CurrentWorkspace,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ImageListResponse:
+    return list_images(
+        tenant_id=tenant_id,
+        offset=offset,
+        limit=limit,
     )

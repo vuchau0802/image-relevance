@@ -164,3 +164,23 @@ def test_subject_groups_and_categories_stay_consistent():
 
             seen_aliases[normalized] = canonical
             assert SUBJECT_ALIASES[normalized] == canonical
+
+
+@pytest.mark.parametrize(
+    "required,observed,category,expected",
+    [
+        ("forest", "forest", "landscape", True),
+        ("Forest", "woodland", "landscape", True),
+        ("forest", "mountain", "landscape", False),
+        ("forest", "forest", "animal", False),
+        ("Yosemite waterfall", "forest", "landscape", False),
+    ],
+)
+def test_forest_subject_guard(
+    required, observed, category, expected
+):
+    assert subject_matches(
+        required,
+        observed,
+        category=category,
+    ) is expected

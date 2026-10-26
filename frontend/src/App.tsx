@@ -8,11 +8,13 @@ import PostPicker from './PostPicker'
 import CreatePostForm from './CreatePostForm'
 import PreparePost from './PreparePost'
 import UploadImageForm from './UploadImageForm'
+import ImageLibrary from './ImageLibrary'
 
 function App() {
   const getSessionToken = useSessionToken()
   const [postId, setPostId] = useState('')
   const [postsVersion, setPostsVersion] = useState(0)
+  const [libraryVersion, setLibraryVersion] = useState(0)
   const [result, setResult] = useState<RankingResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,6 +66,16 @@ function App() {
       <h1>Image Relevance</h1>
       <p>Select a post to find suitable images.</p>
       <UploadImageForm
+        onUploaded={() => {
+          setLibraryVersion((value) => value + 1)
+        }}
+        onImageReady={() => {
+          setRetry((value) => value + 1)
+          setLibraryVersion((value) => value + 1)
+        }}
+      />
+      <ImageLibrary
+        key={`images-${libraryVersion}`}
         onImageReady={() => setRetry((value) => value + 1)}
       />
       <CreatePostForm
@@ -74,7 +86,7 @@ function App() {
       />
 
       <PostPicker
-        key={postsVersion}
+        key={`posts-${postsVersion}`}
         value={postId}
         onSelect={setPostId}
       />
