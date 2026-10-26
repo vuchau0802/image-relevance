@@ -8,7 +8,11 @@ import AnalyzeImage from './AnalyzeImage'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
-export default function UploadImageForm() {
+export default function UploadImageForm({
+  onImageReady,
+}: {
+  onImageReady?: () => void
+}) {
   const getSessionToken = useSessionToken()
   const activeRequest = useRef<AbortController | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -140,6 +144,7 @@ export default function UploadImageForm() {
           <AnalyzeImage
             key={result.image_id}
             imageId={result.image_id}
+            onImageReady={onImageReady}
           />
         )}
       </form>

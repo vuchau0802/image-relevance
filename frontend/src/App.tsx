@@ -63,7 +63,9 @@ function App() {
     <main style={{ maxWidth: 900, margin: '40px auto', padding: 24 }}>
       <h1>Image Relevance</h1>
       <p>Select a post to find suitable images.</p>
-      <UploadImageForm />
+      <UploadImageForm
+        onImageReady={() => setRetry((value) => value + 1)}
+      />
       <CreatePostForm
         onCreated={(createdId) => {
           setPostId(createdId)

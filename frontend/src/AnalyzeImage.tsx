@@ -27,8 +27,10 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 
 export default function AnalyzeImage({
   imageId,
+  onImageReady,
 }: {
   imageId: string
+  onImageReady?: () => void
 }) {
   const getSessionToken = useSessionToken()
   const activeRequest = useRef<AbortController | null>(null)
@@ -155,7 +157,11 @@ export default function AnalyzeImage({
         job.completed > 0 &&
         job.needs_review === 0 &&
         job.failed === 0 && (
-          <PrepareImage key={imageId} imageId={imageId} />
+          <PrepareImage
+            key={imageId}
+            imageId={imageId}
+            onReady={onImageReady}
+          />
         )}
     </section>
   )

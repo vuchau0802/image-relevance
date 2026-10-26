@@ -23,8 +23,10 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 
 export default function PrepareImage({
   imageId,
+  onReady,
 }: {
   imageId: string
+  onReady?: () => void
 }) {
   const getSessionToken = useSessionToken()
   const activeRequest = useRef<AbortController | null>(null)
@@ -58,6 +60,7 @@ export default function PrepareImage({
         setJob(current)
 
         if (current.status === 'completed') {
+          onReady?.()
           return
         }
 
@@ -118,7 +121,7 @@ export default function PrepareImage({
             {' / '}{job.total}.
           </p>
           {job.status === 'completed' && (
-            <p>Image embedding is ready. Run matching again to see updated results.</p>
+            <p>Image embedding is ready.</p>
           )}
         </div>
       )}
