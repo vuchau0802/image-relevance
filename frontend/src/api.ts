@@ -327,6 +327,7 @@ export async function prepareImageEmbedding(
 
 export interface ImageLibraryItem {
   image_id: string
+  embedding_ready: boolean
   status: ImageUploadResult['status']
   creator: string
   created_at: string

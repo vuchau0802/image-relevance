@@ -2,6 +2,7 @@ from sqlalchemy import select
 from app.database import SessionLocal
 from app.models import Image
 from app.repositories.metadata import persist_classification
+from app.repositories.image_readiness import ready_image_ids
 from app.services.classification import ClassificationResult
 from app.services.image_files import verify_registered_image
 from app.schemas.image import ImageListItem, ImageListResponse
@@ -68,9 +69,16 @@ def list_images(
             .limit(limit + 1)
         ).all()
 
+        ready_ids = ready_image_ids(
+            session,
+            tenant_id,
+            {record.id for record in records[:limit] if record.status == 'completed'},
+        )
+
         items = [
             ImageListItem(
                 image_id=record.id,
+                embedding_ready=record.id in ready_ids,
                 status=record.status,
                 creator=record.creator,
                 created_at=record.created_at,

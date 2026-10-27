@@ -26,6 +26,7 @@ class ImageAttribution(BaseModel):
 
 class ImageListItem(BaseModel):
     image_id: str
+    embedding_ready: bool = False
     status: Literal[
         "pending",
         "processing",

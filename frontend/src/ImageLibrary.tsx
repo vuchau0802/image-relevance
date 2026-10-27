@@ -124,6 +124,13 @@ export default function ImageLibrary({
           <p>{image.image_id}</p>
           <p>Photo by {image.creator}</p>
           <p>Analysis status: {image.status}</p>
+          <p>
+            {image.status !== 'completed'
+              ? 'Not ready for matching.'
+              : image.embedding_ready
+                ? 'Ready for matching.'
+                : 'Embedding preparation needed.'}
+          </p>
 
           {(image.status === 'pending' ||
             image.status === 'processing') && (
@@ -136,7 +143,7 @@ export default function ImageLibrary({
             />
           )}
 
-          {image.status === 'completed' && (
+          {image.status === 'completed' && !image.embedding_ready && (
             <PrepareImage
               imageId={image.image_id}
               onReady={() => {

@@ -29,6 +29,7 @@ const mockedPage = vi.mocked(getImagesPage)
 function image(imageId: string): ImageLibraryItem {
   return {
     image_id: imageId,
+    embedding_ready: false,
     status: 'pending',
     creator: 'Example creator',
     created_at: '2026-01-01T00:00:00Z',
@@ -347,3 +348,54 @@ test.each(['failed', 'completed_with_errors'] as const)(
     expect(mockedPage).toHaveBeenCalledOnce()
   },
 )
+
+test('ready images show readiness without another preparation button', async () => {
+  mockedPage.mockResolvedValue({
+    items: [{
+      ...image('img_ready'),
+      status: 'completed',
+      embedding_ready: true,
+    }],
+    next_offset: null,
+  })
+
+  render(<ImageLibrary />)
+
+  expect(await screen.findByText('Ready for matching.')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Prepare image for matching' }),
+  ).not.toBeInTheDocument()
+  expect(prepareImageEmbedding).not.toHaveBeenCalled()
+})
+
+test('completed preparation reloads readiness and removes its button', async () => {
+  const user = userEvent.setup()
+  const onImageReady = vi.fn()
+  mockedPage
+    .mockResolvedValueOnce({
+      items: [{ ...image('img_one'), status: 'completed' }],
+      next_offset: null,
+    })
+    .mockResolvedValue({
+      items: [{
+        ...image('img_one'),
+        status: 'completed',
+        embedding_ready: true,
+      }],
+      next_offset: null,
+    })
+  vi.mocked(prepareImageEmbedding).mockResolvedValue(embeddingJob('completed'))
+
+  render(<ImageLibrary onImageReady={onImageReady} />)
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Prepare image for matching' }),
+  )
+
+  expect(await screen.findByText('Ready for matching.')).toBeInTheDocument()
+  expect(onImageReady).toHaveBeenCalledOnce()
+  expect(mockedPage).toHaveBeenCalledTimes(2)
+  expect(
+    screen.queryByRole('button', { name: 'Prepare image for matching' }),
+  ).not.toBeInTheDocument()
+})

@@ -226,6 +226,7 @@ test('successful upload refreshes the library without reranking the post', async
         status: 'pending',
         creator: 'Example creator',
         created_at: '2026-01-01T00:00:00Z',
+        embedding_ready: false,
       }],
       next_offset: null,
     })

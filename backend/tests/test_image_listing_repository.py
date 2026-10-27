@@ -104,6 +104,7 @@ def test_listing_is_scoped_to_workspace(image_listing_database):
         "status",
         "creator",
         "created_at",
+        "embedding_ready",
     }
 
 

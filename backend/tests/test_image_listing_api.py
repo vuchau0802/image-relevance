@@ -52,8 +52,9 @@ def test_returns_images_and_forwards_pagination(listing_api):
     body = response.json()
     assert body["next_offset"] is None
     assert body["items"][0]["image_id"] == "img_test"
+    assert body["items"][0]["embedding_ready"] is False
     assert set(body["items"][0]) == {
-        "image_id", "status", "creator", "created_at"
+        "image_id", "status", "creator", "created_at", "embedding_ready"
     }
     ctx.listing.assert_called_once_with(
         tenant_id="ws_owner",
