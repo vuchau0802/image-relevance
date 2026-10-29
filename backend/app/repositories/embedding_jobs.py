@@ -70,6 +70,7 @@ def snapshot_inputs(session, tenant_id):
         select(Post)
         .where(Post.tenant_id == tenant_id)
         .order_by(Post.id)
+        .with_for_update()
     ).all()
 
     for record in posts:
@@ -658,7 +659,7 @@ def create_post_embedding_job(
     settings = get_settings()
 
     with SessionLocal.begin() as session:
-        record = session.get(Post, (tenant_id, post_id))
+        record = session.get(Post, (tenant_id, post_id), with_for_update=True)
 
         if record is None:
             raise EmbeddingPostNotFoundError(

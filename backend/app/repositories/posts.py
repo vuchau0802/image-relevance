@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from uuid import uuid4
 from app.database import SessionLocal
-from app.models import Post
+from app.models import EmbeddingJobItem, Post
 from app.schemas.post import (
     PostCreate,
     PostInput,
@@ -103,3 +103,42 @@ def update_post(
         )
 
     return result
+
+class PostBusyError(ValueError):
+    pass
+
+
+def delete_post(
+    tenant_id: str,
+    post_id: str,
+) -> None:
+    with SessionLocal.begin() as session:
+        record = session.get(
+            Post,
+            (tenant_id, post_id),
+            with_for_update=True,
+        )
+
+        if record is None:
+            raise PostNotFoundError("Post not found")
+
+        active_item = session.scalar(
+            select(EmbeddingJobItem.id)
+            .where(
+                EmbeddingJobItem.tenant_id == tenant_id,
+                EmbeddingJobItem.source_type == "post",
+                EmbeddingJobItem.source_id == post_id,
+                EmbeddingJobItem.status.in_(
+                    ["pending", "processing"]
+                ),
+            )
+            .limit(1)
+        )
+
+        if active_item is not None:
+            raise PostBusyError(
+                "Post preparation is queued or processing. "
+                "Wait for it to finish before deleting."
+            )
+
+        session.delete(record)

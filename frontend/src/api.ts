@@ -431,3 +431,28 @@ export async function updatePost(
 
   return response.json()
 }
+
+export async function deletePost(
+  postId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<void> {
+  const response = await apiFetch(
+    `/posts/${encodeURIComponent(postId)}`,
+    signal,
+    accessToken,
+    { method: 'DELETE' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Post not found. Refresh the post list.'
+        : response.status === 409
+          ? 'Post preparation is queued or processing. Wait for it to finish before deleting.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not delete this post (${response.status}).`,
+    )
+  }
+}

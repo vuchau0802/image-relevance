@@ -1,11 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path,Query
+from fastapi import APIRouter, HTTPException, Path, Query, Response
 
 from app.api.dependencies import CurrentWorkspace
 from app.repositories.posts import (
+    PostBusyError,
     PostNotFoundError,
     create_post,
+    delete_post,
     get_post,
     list_posts,
     update_post,
@@ -125,3 +127,33 @@ def replace_post(
             status_code=404,
             detail="Post not found",
         ) from None
+
+@router.delete(
+    "/{post_id}",
+    status_code=204,
+    response_class=Response,
+)
+def remove_post(
+    post_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    tenant_id: CurrentWorkspace,
+) -> Response:
+    try:
+        delete_post(
+            tenant_id=tenant_id,
+            post_id=post_id,
+        )
+    except PostNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found",
+        ) from None
+    except PostBusyError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from None
+
+    return Response(status_code=204)

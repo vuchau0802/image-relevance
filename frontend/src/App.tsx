@@ -10,6 +10,7 @@ import EditPostForm from './EditPostForm'
 import PreparePost from './PreparePost'
 import UploadImageForm from './UploadImageForm'
 import ImageLibrary from './ImageLibrary'
+import DeletePost from './DeletePost'
 
 function App() {
   const getSessionToken = useSessionToken()
@@ -119,6 +120,21 @@ function App() {
             setPostsVersion((value) => value + 1)
             setResult(null)
             setRetry((value) => value + 1)
+          }}
+        />
+      )}
+
+      {postId && !editing && (
+        <DeletePost
+          key={`delete-post-${postId}-${postsVersion}`}
+          postId={postId}
+          onDeleted={() => {
+            setPostId('')
+            setEditing(false)
+            setResult(null)
+            setError('')
+            setLoading(false)
+            setPostsVersion((value) => value + 1)
           }}
         />
       )}
