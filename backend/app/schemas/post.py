@@ -44,3 +44,6 @@ class PostCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     content: str = Field(min_length=1, max_length=10000)
     required_subject: str = Field(min_length=1, max_length=200)
+
+class PostUpdate(PostCreate):
+    """All editable fields are required when replacing a post."""

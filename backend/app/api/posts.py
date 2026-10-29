@@ -1,10 +1,21 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path,Query
 
 from app.api.dependencies import CurrentWorkspace
-from app.repositories.posts import create_post, list_posts
-from app.schemas.post import PostCreate, PostInput, PostListResponse
+from app.repositories.posts import (
+    PostNotFoundError,
+    create_post,
+    get_post,
+    list_posts,
+    update_post,
+)
+from app.schemas.post import (
+    PostCreate,
+    PostInput,
+    PostListResponse,
+    PostUpdate,
+)
 from app.repositories.embedding_jobs import (
     EmbeddingPostNotFoundError,
     create_post_embedding_job,
@@ -73,3 +84,44 @@ def prepare_post_embedding(
             job_id=job_id,
         )
     )
+
+@router.get("/{post_id}", response_model=PostInput)
+def read_post(
+    post_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    tenant_id: CurrentWorkspace,
+) -> PostInput:
+    try:
+        return get_post(
+            tenant_id=tenant_id,
+            post_id=post_id,
+        )
+    except PostNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found",
+        ) from None
+
+
+@router.put("/{post_id}", response_model=PostInput)
+def replace_post(
+    post_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    payload: PostUpdate,
+    tenant_id: CurrentWorkspace,
+) -> PostInput:
+    try:
+        return update_post(
+            tenant_id=tenant_id,
+            post_id=post_id,
+            payload=payload,
+        )
+    except PostNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found",
+        ) from None

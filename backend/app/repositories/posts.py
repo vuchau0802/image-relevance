@@ -53,3 +53,53 @@ def create_post(
         ))
 
     return created
+
+class PostNotFoundError(LookupError):
+    pass
+
+
+def get_post(
+    tenant_id: str,
+    post_id: str,
+) -> PostInput:
+    with SessionLocal() as session:
+        record = session.get(Post, (tenant_id, post_id))
+
+        if record is None:
+            raise PostNotFoundError("Post not found")
+
+        return PostInput(
+            id=record.id,
+            title=record.title,
+            content=record.content,
+            required_subject=record.required_subject,
+        )
+
+
+def update_post(
+    tenant_id: str,
+    post_id: str,
+    payload: PostUpdate,
+) -> PostInput:
+    with SessionLocal.begin() as session:
+        record = session.get(
+            Post,
+            (tenant_id, post_id),
+            with_for_update=True,
+        )
+
+        if record is None:
+            raise PostNotFoundError("Post not found")
+
+        record.title = payload.title
+        record.content = payload.content
+        record.required_subject = payload.required_subject
+
+        result = PostInput(
+            id=record.id,
+            title=record.title,
+            content=record.content,
+            required_subject=record.required_subject,
+        )
+
+    return result

@@ -375,3 +375,59 @@ export async function getImagesPage(
 
   return page
 }
+
+export async function getPost(
+  postId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<CreatedPost> {
+  const response = await apiFetch(
+    `/posts/${encodeURIComponent(postId)}`,
+    signal,
+    accessToken,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Post not found.'
+        : response.status === 401
+          ? 'Please sign in again.'
+          : `Could not load this post (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}
+
+export async function updatePost(
+  postId: string,
+  payload: PostCreateInput,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<CreatedPost> {
+  const response = await apiFetch(
+    `/posts/${encodeURIComponent(postId)}`,
+    signal,
+    accessToken,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Post not found.'
+        : response.status === 422
+          ? 'Check the required fields and their lengths.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not save this post (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}

@@ -1,11 +1,12 @@
 import { useSessionToken } from './useSessionToken'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getRecommendations } from './api'
 import type { RankingResponse } from './api'
 import ImagePreview from './ImagePreview'
 import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
 import CreatePostForm from './CreatePostForm'
+import EditPostForm from './EditPostForm'
 import PreparePost from './PreparePost'
 import UploadImageForm from './UploadImageForm'
 import ImageLibrary from './ImageLibrary'
@@ -19,6 +20,12 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const [editing, setEditing] = useState(false)
+
+  const selectPost = useCallback((selectedId: string) => {
+    setPostId(selectedId)
+    setEditing(false)
+  }, [])
 
   useEffect(() => {
     if (!postId) {
@@ -81,6 +88,7 @@ function App() {
       <CreatePostForm
         onCreated={(createdId) => {
           setPostId(createdId)
+          setEditing(false)
           setPostsVersion((version) => version + 1)
         }}
       />
@@ -88,17 +96,41 @@ function App() {
       <PostPicker
         key={`posts-${postsVersion}`}
         value={postId}
-        onSelect={setPostId}
+        onSelect={selectPost}
       />
+
+      {postId && (
+        <button
+          type="button"
+          aria-expanded={editing}
+          onClick={() => setEditing((value) => !value)}
+        >
+          {editing ? 'Close editor' : 'Edit selected post'}
+        </button>
+      )}
+
+      {postId && editing && (
+        <EditPostForm
+          key={postId}
+          postId={postId}
+          onSaved={(savedId) => {
+            setPostId(savedId)
+            setEditing(false)
+            setPostsVersion((value) => value + 1)
+            setResult(null)
+            setRetry((value) => value + 1)
+          }}
+        />
+      )}
 
       <section aria-live="polite" aria-busy={loading}>
         {postId && loading && <p>Finding suitable images…</p>}
         {postId && (
-        <PreparePost
-          key={postId}
-          postId={postId}
-          onReady={() => setRetry((value) => value + 1)}
-        />
+          <PreparePost
+            key={`post-preparation-${postId}-${postsVersion}`}
+            postId={postId}
+            onReady={() => setRetry((value) => value + 1)}
+          />
         )}
 
         {postId && error && (
