@@ -33,6 +33,10 @@ def worker_context(monkeypatch):
     clock = SimpleNamespace(now=0)
     discover = Mock(return_value=[])
     dispatch = Mock(return_value="processed")
+    cleanup = Mock(return_value="idle")
+    monkeypatch.setattr(
+        runner, "process_next_file_cleanup", cleanup
+    )
 
     monkeypatch.setattr(runner.time, "monotonic", lambda: clock.now)
     monkeypatch.setattr(
@@ -46,6 +50,7 @@ def worker_context(monkeypatch):
         clock=clock,
         discover=discover,
         dispatch=dispatch,
+        cleanup=cleanup,
         candidate=ReadyWorkspaceJob(
             "embedding", "ws_owner", "test-job"
         ),
@@ -166,3 +171,57 @@ def test_invalid_poll_interval_is_rejected(worker_context, seconds):
         )
 
     ctx.discover.assert_not_called()
+
+
+@pytest.mark.parametrize("outcome", ["completed", "retry", "failed"])
+def test_cleanup_outcomes_do_not_block_ai_jobs(
+    worker_context, outcome
+):
+    ctx = worker_context
+    ctx.cleanup.return_value = outcome
+    ctx.discover.return_value = [ctx.candidate]
+
+    runner.run_worker(FakeStop(ctx.clock))
+
+    ctx.cleanup.assert_called_once_with()
+    ctx.dispatch.assert_called_once_with(ctx.candidate)
+
+
+def test_cleanup_exception_does_not_block_ai_jobs(
+    worker_context, caplog
+):
+    ctx = worker_context
+    ctx.cleanup.side_effect = RuntimeError("Synthetic cleanup outage")
+    ctx.discover.return_value = [ctx.candidate]
+
+    runner.run_worker(FakeStop(ctx.clock))
+
+    ctx.dispatch.assert_called_once_with(ctx.candidate)
+    assert "Image file cleanup failed" in caplog.text
+
+
+def test_cleanup_runs_when_ai_queue_is_empty(worker_context):
+    ctx = worker_context
+    ctx.cleanup.return_value = "completed"
+
+    runner.run_worker(FakeStop(ctx.clock))
+
+    ctx.cleanup.assert_called_once_with()
+    ctx.dispatch.assert_not_called()
+
+
+def test_shutdown_after_cleanup_skips_ai_discovery(worker_context):
+    ctx = worker_context
+    stop = FakeStop(ctx.clock)
+
+    def finish_cleanup():
+        stop.set()
+        return "completed"
+
+    ctx.cleanup.side_effect = finish_cleanup
+
+    runner.run_worker(stop)
+
+    ctx.cleanup.assert_called_once()
+    ctx.discover.assert_not_called()
+    ctx.dispatch.assert_not_called()

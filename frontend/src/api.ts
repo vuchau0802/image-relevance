@@ -456,3 +456,28 @@ export async function deletePost(
     )
   }
 }
+
+export async function deleteImage(
+  imageId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<void> {
+  const response = await apiFetch(
+    `/images/${encodeURIComponent(imageId)}`,
+    signal,
+    accessToken,
+    { method: 'DELETE' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Image not found. Refresh your images.'
+        : response.status === 409
+          ? 'This image cannot be deleted right now. Processing may still be queued or running.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not delete this image (${response.status}).`,
+    )
+  }
+}

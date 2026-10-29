@@ -22,6 +22,7 @@ vi.mock('./useSessionToken', () => ({
 }))
 
 vi.mock('./api', () => ({
+  deleteImage: vi.fn(),
   getImagesPage: vi.fn(),
   getPosts: vi.fn(),
   getRecommendations: vi.fn(),
@@ -264,4 +265,123 @@ test('successful upload refreshes the library without reranking the post', async
   expect(
     screen.getByRole('combobox', { name: 'Blog post' }),
   ).toHaveValue('post_test')
+})
+
+
+test('successful image deletion refreshes the library and recommendations', async () => {
+  const user = userEvent.setup()
+
+  mocked.getImagesPage
+    .mockResolvedValueOnce({
+      items: [{
+        image_id: 'img_uploaded',
+        status: 'completed',
+        creator: 'Example creator',
+        created_at: '2026-01-01T00:00:00Z',
+        embedding_ready: true,
+      }],
+      next_offset: null,
+    })
+    .mockResolvedValue({
+      items: [],
+      next_offset: null,
+    })
+
+  mocked.getRecommendations
+    .mockReset()
+    .mockResolvedValueOnce(ranking(true))
+    .mockResolvedValue(ranking(false))
+  mocked.deleteImage.mockResolvedValue(undefined)
+
+  render(<App />)
+
+  await screen.findByRole('article', {
+    name: 'Uploaded image img_uploaded',
+  })
+  await screen.findByRole('heading', {
+    name: 'Suggested images',
+  })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Delete image' }),
+  )
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Confirm image deletion',
+    }),
+  )
+
+  await screen.findByText('No images uploaded yet.')
+  await screen.findByRole('heading', {
+    name: 'No confident match',
+  })
+
+  expect(
+    screen.queryByRole('article', {
+      name: 'Uploaded image img_uploaded',
+    }),
+  ).not.toBeInTheDocument()
+  expect(mocked.deleteImage).toHaveBeenCalledExactlyOnceWith(
+    'img_uploaded',
+    expect.any(AbortSignal),
+    'synthetic-token',
+  )
+  expect(mocked.getImagesPage).toHaveBeenCalledTimes(2)
+  expect(mocked.getRecommendations).toHaveBeenCalledTimes(2)
+  expect(
+    screen.getByRole('combobox', { name: 'Blog post' }),
+  ).toHaveValue('post_test')
+})
+
+test('failed image deletion preserves the library and recommendations', async () => {
+  const user = userEvent.setup()
+
+  mocked.getImagesPage.mockResolvedValue({
+    items: [{
+      image_id: 'img_uploaded',
+      status: 'completed',
+      creator: 'Example creator',
+      created_at: '2026-01-01T00:00:00Z',
+      embedding_ready: true,
+    }],
+    next_offset: null,
+  })
+  mocked.getRecommendations
+    .mockReset()
+    .mockResolvedValue(ranking(true))
+  mocked.deleteImage.mockRejectedValue(
+    new Error('Image processing is still running.'),
+  )
+
+  render(<App />)
+
+  await screen.findByRole('article', {
+    name: 'Uploaded image img_uploaded',
+  })
+  await screen.findByRole('heading', {
+    name: 'Suggested images',
+  })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Delete image' }),
+  )
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Confirm image deletion',
+    }),
+  )
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Image processing is still running.',
+  )
+  expect(
+    screen.getByRole('article', {
+      name: 'Uploaded image img_uploaded',
+    }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('heading', { name: 'Suggested images' }),
+  ).toBeInTheDocument()
+  expect(mocked.getImagesPage).toHaveBeenCalledOnce()
+  expect(mocked.getRecommendations).toHaveBeenCalledOnce()
 })

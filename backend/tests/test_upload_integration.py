@@ -12,10 +12,13 @@ from sqlalchemy.orm import sessionmaker
 from app.api import images as images_api
 from app.database import engine
 from app.main import create_app
-from app.models import Image
+from app.models import Image, ImageFileCleanupTask
 from app.repositories import uploads, workspaces
 from app.services import image_files, upload_storage
 from app.services.auth import AuthenticatedUser, require_user
+from app.repositories import image_deletion, jobs
+from app.repositories import images as image_repository
+from app.workers import file_cleanup
 
 
 pytestmark = pytest.mark.integration
@@ -34,6 +37,9 @@ def upload_flow(request, monkeypatch, tmp_path):
     monkeypatch.setattr(uploads, "SessionLocal", factory)
     monkeypatch.setattr(workspaces, "SessionLocal", factory)
     monkeypatch.setattr(images_api, "SessionLocal", factory)
+    for module in (image_deletion, image_repository, jobs, file_cleanup):
+        monkeypatch.setattr(module, "SessionLocal", factory)
+    monkeypatch.setattr(file_cleanup, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(upload_storage, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(image_files, "PROJECT_ROOT", tmp_path)
 
@@ -210,3 +216,107 @@ def test_invalid_image_creates_no_file_or_record(upload_flow):
             .where(Image.tenant_id == ctx.tenant)
         )
         assert count == 0
+
+def test_owner_deletion_removes_access_then_cleans_file(upload_flow):
+    ctx = upload_flow
+    uploaded = upload_image(ctx)
+    assert uploaded.status_code == 201
+    image_id = uploaded.json()["image_id"]
+
+    with ctx.factory() as session:
+        record = session.get(Image, (ctx.tenant, image_id))
+        path = ctx.root / record.file_path
+    assert path.is_file()
+
+    deleted = ctx.client.delete(f"{ctx.prefix}/images/{image_id}")
+    assert deleted.status_code == 204
+    assert path.is_file()  # Physical removal is queued separately.
+
+    for suffix in ("file", "attribution"):
+        assert ctx.client.get(
+            f"{ctx.prefix}/images/{image_id}/{suffix}"
+        ).status_code == 404
+
+    listed = ctx.client.get(f"{ctx.prefix}/images")
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
+
+    with ctx.factory() as session:
+        task = session.scalar(select(ImageFileCleanupTask).where(
+            ImageFileCleanupTask.tenant_id == ctx.tenant,
+            ImageFileCleanupTask.image_id == image_id,
+        ))
+        assert task.status == "pending"
+        cleanup_id = task.id
+
+    assert file_cleanup.process_next_file_cleanup() == "completed"
+    assert not path.exists()
+    with ctx.factory() as session:
+        task = session.get(ImageFileCleanupTask, (ctx.tenant, cleanup_id))
+        assert task.status == "completed"
+    assert file_cleanup.process_next_file_cleanup() == "idle"
+
+
+def test_other_account_cannot_delete_uploaded_image(upload_flow):
+    ctx = upload_flow
+    uploaded = upload_image(ctx)
+    assert uploaded.status_code == 201
+    image_id = uploaded.json()["image_id"]
+    original_identity = ctx.identity["user"]
+    ctx.identity["user"] = ctx.second
+
+    response = ctx.client.delete(
+        f"{ctx.prefix}/images/{image_id}",
+        headers={"X-Tenant-ID": ctx.tenant},
+        params={"tenant_id": ctx.tenant},
+    )
+    assert response.status_code == 404
+    ctx.identity["user"] = original_identity
+    assert ctx.client.get(
+        f"{ctx.prefix}/images/{image_id}/file"
+    ).status_code == 200
+    with ctx.factory() as session:
+        assert session.scalars(select(ImageFileCleanupTask).where(
+            ImageFileCleanupTask.tenant_id == ctx.tenant
+        )).all() == []
+
+
+def test_queued_analysis_prevents_image_deletion(upload_flow):
+    ctx = upload_flow
+    uploaded = upload_image(ctx)
+    assert uploaded.status_code == 201
+    image_id = uploaded.json()["image_id"]
+    queued = ctx.client.post(
+        f"{ctx.prefix}/images/{image_id}/analysis-job"
+    )
+    assert queued.status_code == 202
+
+    deleted = ctx.client.delete(f"{ctx.prefix}/images/{image_id}")
+    assert deleted.status_code == 409
+    assert ctx.client.get(
+        f"{ctx.prefix}/images/{image_id}/file"
+    ).status_code == 200
+    with ctx.factory() as session:
+        assert session.get(Image, (ctx.tenant, image_id)) is not None
+        assert session.scalars(select(ImageFileCleanupTask).where(
+            ImageFileCleanupTask.tenant_id == ctx.tenant
+        )).all() == []
+
+
+def test_signed_out_user_cannot_delete_uploaded_image(upload_flow):
+    ctx = upload_flow
+    uploaded = upload_image(ctx)
+    assert uploaded.status_code == 201
+    image_id = uploaded.json()["image_id"]
+    ctx.app.dependency_overrides.clear()
+
+    response = ctx.client.delete(
+        f"{ctx.prefix}/images/{image_id}",
+        headers={"X-Tenant-ID": ctx.tenant},
+    )
+    assert response.status_code == 401
+    with ctx.factory() as session:
+        assert session.get(Image, (ctx.tenant, image_id)) is not None
+        assert session.scalars(select(ImageFileCleanupTask).where(
+            ImageFileCleanupTask.tenant_id == ctx.tenant
+        )).all() == []

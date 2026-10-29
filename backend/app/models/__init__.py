@@ -7,6 +7,7 @@ from app.models.embedding import ImageEmbedding, PostEmbedding
 from app.models.embedding_job import EmbeddingJob, EmbeddingJobItem
 from app.models.context import ImageContextRecord, PostContextRecord
 from app.models.workspace import Workspace
+from app.models.image_cleanup import ImageFileCleanupTask
 
 __all__ = [
     "Image",
@@ -24,4 +25,5 @@ __all__ = [
     "PostContextRecord",
     "ImageContextRecord",
     "Workspace",
+    "ImageFileCleanupTask",
 ]

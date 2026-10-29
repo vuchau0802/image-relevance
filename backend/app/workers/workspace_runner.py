@@ -8,6 +8,7 @@ from app.repositories.worker_queue import (
     list_ready_workspace_jobs,
 )
 from app.workers.dispatcher import dispatch_workspace_job
+from app.workers.file_cleanup import process_next_file_cleanup
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,19 @@ def run_worker(
             for candidate, deadline in cooldowns.items()
             if deadline > now
         }
+
+        try:
+            cleanup_outcome = process_next_file_cleanup()
+            if cleanup_outcome != "idle":
+                logger.info("Image file cleanup: %s", cleanup_outcome)
+        except Exception as error:
+            logger.warning(
+                "Image file cleanup failed (%s)",
+                type(error).__name__,
+            )
+
+        if stop.is_set():
+            break
 
         try:
             candidates = list_ready_workspace_jobs(

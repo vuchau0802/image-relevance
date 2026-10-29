@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile, Response
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import CurrentWorkspace
@@ -30,6 +30,12 @@ from app.repositories.embedding_jobs import (
 from app.schemas.embedding_job import EmbeddingJobResponse
 from app.repositories.images import list_images
 from app.schemas.image import ImageListResponse
+from app.repositories.image_deletion import (
+    ImageBusyError,
+    ImageDeletionNotAllowedError,
+    ImageNotFoundError,
+    delete_image,
+)
 
 router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
@@ -233,3 +239,33 @@ def read_images(
         offset=offset,
         limit=limit,
     )
+
+@router.delete(
+    "/{image_id}",
+    status_code=204,
+    response_class=Response,
+)
+def remove_image(
+    image_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    tenant_id: CurrentWorkspace,
+) -> Response:
+    try:
+        delete_image(
+            tenant_id=tenant_id,
+            image_id=image_id,
+        )
+    except ImageNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found",
+        ) from None
+    except (ImageBusyError, ImageDeletionNotAllowedError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from None
+
+    return Response(status_code=204)

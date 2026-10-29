@@ -5,6 +5,7 @@ import ImagePreview from './ImagePreview'
 import { useSessionToken } from './useSessionToken'
 import AnalyzeImage from './AnalyzeImage'
 import PrepareImage from './PrepareImage'
+import DeleteImage from './DeleteImage'
 
 export default function ImageLibrary({
   onImageReady,
@@ -160,6 +161,14 @@ export default function ImageLibrary({
           {image.status === 'failed' && (
             <p>Image analysis failed. This image needs attention.</p>
           )}
+          <DeleteImage
+            imageId={image.image_id}
+            creator={image.creator}
+            onDeleted={() => {
+              refresh()
+              onImageReady?.()
+            }}
+          />
         </article>
       ))}
 

@@ -49,6 +49,7 @@ def snapshot_inputs(session, tenant_id):
             Image.status == "completed",
         )
         .order_by(Image.id)
+        .with_for_update(of=Image)
     ).all()
 
     for image_id, record in images:
