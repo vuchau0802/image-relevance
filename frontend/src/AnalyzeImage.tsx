@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   getImageAnalysisJob,
+  retryImageAnalysis,
   startImageAnalysis,
 } from './api'
 import type { ImageAnalysisJob } from './api'
@@ -27,9 +28,11 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 
 export default function AnalyzeImage({
   imageId,
+  initialFailedJobId,
   onImageReady,
 }: {
   imageId: string
+  initialFailedJobId?: string | null
   onImageReady?: () => void
 }) {
   const getSessionToken = useSessionToken()
@@ -42,6 +45,18 @@ export default function AnalyzeImage({
     return () => activeRequest.current?.abort()
   }, [])
 
+  const failedJobId = job === null
+    ? initialFailedJobId
+    : job.failed > 0 &&
+        (
+          job.status === 'failed' ||
+          job.status === 'completed_with_errors'
+        )
+      ? job.job_id
+      : null
+
+  const canRetry = Boolean(failedJobId)
+
   async function analyze() {
     if (activeRequest.current) {
       return
@@ -51,14 +66,23 @@ export default function AnalyzeImage({
     activeRequest.current = controller
     setBusy(true)
     setError('')
-    setJob(null)
 
     try {
-      let current = await startImageAnalysis(
-        imageId,
-        controller.signal,
-        await getSessionToken(),
-      )
+      const token = await getSessionToken()
+      if (controller.signal.aborted) return
+
+      let current = failedJobId
+        ? await retryImageAnalysis(
+            imageId,
+            failedJobId,
+            controller.signal,
+            token,
+          )
+        : await startImageAnalysis(
+            imageId,
+            controller.signal,
+            token,
+          )
 
       while (!controller.signal.aborted) {
         setJob(current)
@@ -116,7 +140,11 @@ export default function AnalyzeImage({
         disabled={busy}
         onClick={() => void analyze()}
       >
-        {busy ? 'Analyzing…' : 'Analyze image'}
+        {busy
+          ? 'Analyzing…'
+          : canRetry
+            ? 'Retry image analysis'
+            : 'Analyze image'}
       </button>
 
       {job && (

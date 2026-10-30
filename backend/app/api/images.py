@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile, Response
 from fastapi.responses import FileResponse
@@ -20,6 +21,7 @@ from app.repositories.jobs import (
     ProcessingImageNotFoundError,
     create_image_processing_job,
     get_job_summary,
+    retry_image_processing_job,
 )
 from app.repositories.embedding_jobs import (
     EmbeddingImageNotFoundError,
@@ -269,3 +271,40 @@ def remove_image(
         ) from None
 
     return Response(status_code=204)
+
+@router.post(
+    "/{image_id}/analysis-jobs/{failed_job_id}/retry",
+    response_model=JobSummary,
+    status_code=202,
+)
+def retry_image_analysis(
+    image_id: Annotated[
+        str,
+        Path(min_length=1, max_length=50),
+    ],
+    failed_job_id: UUID,
+    tenant_id: CurrentWorkspace,
+) -> JobSummary:
+    try:
+        job_id = retry_image_processing_job(
+            tenant_id=tenant_id,
+            image_id=image_id,
+            failed_job_id=str(failed_job_id),
+        )
+    except ProcessingImageNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found",
+        ) from None
+    except ImageNotProcessableError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from None
+
+    return JobSummary.model_validate(
+        get_job_summary(
+            tenant_id=tenant_id,
+            job_id=job_id,
+        )
+    )

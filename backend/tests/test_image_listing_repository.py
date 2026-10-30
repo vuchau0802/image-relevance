@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from app.database import engine
-from app.models import Image
+from app.models import Image, Job, JobItem
 from app.repositories import images as repository
 
 
@@ -56,6 +56,7 @@ def image_listing_database(monkeypatch):
             owner=owner,
             other=other,
             empty=empty,
+            factory=factory,
         )
     finally:
         transaction.rollback()
@@ -97,6 +98,7 @@ def test_listing_is_scoped_to_workspace(image_listing_database):
     assert len(result.items) == 1
     assert result.items[0].image_id == "img_003"
     assert result.items[0].creator == "Other creator"
+    assert result.items[0].failed_analysis_job_id is None
 
     # Internal file paths and checksums are not part of this response.
     assert set(result.items[0].model_dump()) == {
@@ -105,6 +107,7 @@ def test_listing_is_scoped_to_workspace(image_listing_database):
         "creator",
         "created_at",
         "embedding_ready",
+        "failed_analysis_job_id",
     }
 
 
@@ -134,3 +137,132 @@ def test_invalid_pagination_is_rejected(
             image_listing_database.owner,
             **arguments,
         )
+
+def add_failed_analysis(ctx, tenant, image_id, created_at):
+    job_id = str(uuid4())
+
+    with ctx.factory.begin() as session:
+        session.add(Job(
+            tenant_id=tenant,
+            id=job_id,
+            idempotency_key=f"test-failure-{job_id}",
+            status="failed",
+            created_at=created_at,
+        ))
+        session.flush()
+
+        session.add(JobItem(
+            tenant_id=tenant,
+            id=str(uuid4()),
+            job_id=job_id,
+            image_id=image_id,
+            status="failed",
+            attempts=3,
+            max_attempts=3,
+            created_at=created_at,
+        ))
+
+    return job_id
+
+
+def test_failed_image_returns_latest_failed_job(
+    image_listing_database,
+):
+    ctx = image_listing_database
+    now = datetime.now(timezone.utc)
+
+    with ctx.factory.begin() as session:
+        session.get(
+            Image, (ctx.owner, "img_003")
+        ).status = "failed"
+
+    add_failed_analysis(
+        ctx, ctx.owner, "img_003",
+        now - timedelta(hours=1),
+    )
+    latest_id = add_failed_analysis(
+        ctx, ctx.owner, "img_003", now,
+    )
+
+    result = repository.list_images(ctx.owner)
+    image = next(
+        item for item in result.items
+        if item.image_id == "img_003"
+    )
+
+    assert image.failed_analysis_job_id == latest_id
+
+
+def test_failed_job_discovery_excludes_other_workspace(
+    image_listing_database,
+):
+    ctx = image_listing_database
+    now = datetime.now(timezone.utc)
+
+    with ctx.factory.begin() as session:
+        session.get(
+            Image, (ctx.owner, "img_003")
+        ).status = "failed"
+        session.get(
+            Image, (ctx.other, "img_003")
+        ).status = "failed"
+
+    owner_job = add_failed_analysis(
+        ctx, ctx.owner, "img_003",
+        now - timedelta(hours=1),
+    )
+    other_job = add_failed_analysis(
+        ctx, ctx.other, "img_003", now,
+    )
+
+    owner_result = repository.list_images(ctx.owner)
+    owner_image = next(
+        item for item in owner_result.items
+        if item.image_id == "img_003"
+    )
+    other_result = repository.list_images(ctx.other)
+
+    assert owner_image.failed_analysis_job_id == owner_job
+    assert other_result.items[0].failed_analysis_job_id == other_job
+
+
+def test_failed_image_without_job_returns_null(
+    image_listing_database,
+):
+    ctx = image_listing_database
+
+    with ctx.factory.begin() as session:
+        session.get(
+            Image, (ctx.owner, "img_003")
+        ).status = "failed"
+
+    result = repository.list_images(ctx.owner)
+    image = next(
+        item for item in result.items
+        if item.image_id == "img_003"
+    )
+
+    assert image.failed_analysis_job_id is None
+
+
+def test_nonfailed_image_does_not_expose_old_failed_job(
+    image_listing_database,
+):
+    ctx = image_listing_database
+
+    add_failed_analysis(
+        ctx,
+        ctx.owner,
+        "img_003",
+        datetime.now(timezone.utc),
+    )
+
+    # The fixture image is pending, despite its historical failure.
+    result = repository.list_images(ctx.owner)
+    image = next(
+        item for item in result.items
+        if item.image_id == "img_003"
+    )
+
+    assert image.status == "pending"
+    assert image.failed_analysis_job_id is None

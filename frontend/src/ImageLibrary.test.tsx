@@ -2,7 +2,12 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { getImagesPage, prepareImageEmbedding } from './api'
+import {
+  getImagesPage,
+  prepareImageEmbedding,
+  retryImageAnalysis,
+  startImageAnalysis,
+} from './api'
 import type { EmbeddingJob, ImageLibraryItem } from './api'
 import ImageLibrary from './ImageLibrary'
 
@@ -16,6 +21,9 @@ vi.mock('./useSessionToken', () => ({
 
 vi.mock('./api', () => ({
   getImagesPage: vi.fn(),
+  retryImageAnalysis: vi.fn(),
+  startImageAnalysis: vi.fn(),
+  getImageAnalysisJob: vi.fn(),
   prepareImageEmbedding: vi.fn(),
   getEmbeddingJob: vi.fn(),
 }))
@@ -41,6 +49,8 @@ beforeEach(() => {
   getSessionToken.mockReset()
   getSessionToken.mockResolvedValue('synthetic-token')
   vi.mocked(prepareImageEmbedding).mockReset()
+  vi.mocked(retryImageAnalysis).mockReset()
+  vi.mocked(startImageAnalysis).mockReset()
 })
 
 test('loads and displays workspace images', async () => {
@@ -398,4 +408,115 @@ test('completed preparation reloads readiness and removes its button', async () 
   expect(
     screen.queryByRole('button', { name: 'Prepare image for matching' }),
   ).not.toBeInTheDocument()
+})
+
+
+function loadFailedImage(failedJobId: string | null) {
+  mockedPage.mockResolvedValue({
+    items: [{
+      ...image('img_failed'),
+      status: 'failed',
+      failed_analysis_job_id: failedJobId,
+    }],
+    next_offset: null,
+  })
+}
+
+function completedAnalysis() {
+  return {
+    job_id: 'retry_job',
+    status: 'completed' as const,
+    total: 1,
+    pending: 0,
+    processing: 0,
+    completed: 1,
+    needs_review: 0,
+    failed: 0,
+  }
+}
+
+test('loaded failed image retries its discovered job', async () => {
+  const user = userEvent.setup()
+  loadFailedImage('failed_job')
+  vi.mocked(retryImageAnalysis).mockResolvedValue(
+    completedAnalysis(),
+  )
+
+  render(<ImageLibrary />)
+
+  const retryButton = await screen.findByRole('button', {
+    name: 'Retry image analysis',
+  })
+  expect(retryImageAnalysis).not.toHaveBeenCalled()
+
+  await user.click(retryButton)
+
+  expect(
+    await screen.findByText(
+      /Analysis complete\. Image embedding preparation/,
+    ),
+  ).toBeInTheDocument()
+
+  expect(retryImageAnalysis).toHaveBeenCalledExactlyOnceWith(
+    'img_failed',
+    'failed_job',
+    expect.any(AbortSignal),
+    'synthetic-token',
+  )
+  expect(startImageAnalysis).not.toHaveBeenCalled()
+})
+
+test('loaded failed image preserves retry after a request error', async () => {
+  const user = userEvent.setup()
+  loadFailedImage('failed_job')
+  vi.mocked(retryImageAnalysis)
+    .mockRejectedValueOnce(new Error('Service unavailable'))
+    .mockResolvedValueOnce(completedAnalysis())
+
+  render(<ImageLibrary />)
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Retry image analysis',
+    }),
+  )
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Service unavailable',
+  )
+
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Retry image analysis',
+    }),
+  )
+
+  await screen.findByText(
+    /Analysis complete\. Image embedding preparation/,
+  )
+
+  expect(
+    vi.mocked(retryImageAnalysis).mock.calls.map(
+      (call) => call[1],
+    ),
+  ).toEqual(['failed_job', 'failed_job'])
+  expect(startImageAnalysis).not.toHaveBeenCalled()
+})
+
+test('failed image without a job explains why retry is unavailable', async () => {
+  loadFailedImage(null)
+
+  render(<ImageLibrary />)
+
+  expect(
+    await screen.findByText(/No retryable analysis job was found/),
+  ).toBeInTheDocument()
+
+  expect(
+    screen.queryByRole('button', {
+      name: 'Retry image analysis',
+    }),
+  ).not.toBeInTheDocument()
+  expect(retryImageAnalysis).not.toHaveBeenCalled()
+  expect(startImageAnalysis).not.toHaveBeenCalled()
 })

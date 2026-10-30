@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   getImageAnalysisJob,
+  retryImageAnalysis,
   startImageAnalysis,
 } from './api'
 import type { ImageAnalysisJob } from './api'
@@ -18,11 +19,13 @@ vi.mock('./useSessionToken', () => ({
 
 vi.mock('./api', () => ({
   getImageAnalysisJob: vi.fn(),
+  retryImageAnalysis: vi.fn(),
   startImageAnalysis: vi.fn(),
 }))
 
 const mockedStart = vi.mocked(startImageAnalysis)
 const mockedProgress = vi.mocked(getImageAnalysisJob)
+const mockedRetry = vi.mocked(retryImageAnalysis)
 
 function job(
   status: ImageAnalysisJob['status'],
@@ -48,6 +51,7 @@ function job(
 beforeEach(() => {
   mockedStart.mockReset()
   mockedProgress.mockReset()
+  mockedRetry.mockReset()
   getSessionToken.mockReset()
   getSessionToken.mockResolvedValue('synthetic-token')
 })
@@ -157,7 +161,9 @@ test.each(['failed', 'completed_with_errors'] as const)(
       'Analysis did not complete successfully.',
     )
     expect(mockedProgress).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: /^Analy/ })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Retry image analysis' }),
+    ).toBeEnabled()
   },
 )
 
@@ -205,6 +211,140 @@ test('blocks duplicate submissions and aborts on unmount', async () => {
 
   await act(async () => {
     finish(job('queued'))
+  })
+
+  expect(mockedProgress).not.toHaveBeenCalled()
+})
+
+async function clickRetry() {
+  await act(async () => {
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Retry image analysis',
+      }),
+    )
+  })
+}
+
+test('retries the failed job and recovers successfully', async () => {
+  mockedStart.mockResolvedValue(
+    job('failed', { job_id: 'failed_job' }),
+  )
+  mockedRetry.mockResolvedValue(
+    job('completed', { job_id: 'retry_job' }),
+  )
+
+  render(<AnalyzeImage imageId="img_test" />)
+  await clickAnalyze()
+  await clickRetry()
+
+  expect(mockedRetry).toHaveBeenCalledExactlyOnceWith(
+    'img_test',
+    'failed_job',
+    expect.any(AbortSignal),
+    'synthetic-token',
+  )
+  expect(mockedStart).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Analysis complete.',
+  )
+})
+
+test('a failed retry request preserves the failed job for another attempt', async () => {
+  mockedStart.mockResolvedValue(
+    job('failed', { job_id: 'failed_job' }),
+  )
+  mockedRetry
+    .mockRejectedValueOnce(new Error('Service unavailable'))
+    .mockResolvedValueOnce(
+      job('completed', { job_id: 'retry_job' }),
+    )
+
+  render(<AnalyzeImage imageId="img_test" />)
+  await clickAnalyze()
+  await clickRetry()
+
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Service unavailable',
+  )
+  expect(
+    screen.getByRole('button', {
+      name: 'Retry image analysis',
+    }),
+  ).toBeEnabled()
+
+  await clickRetry()
+
+  expect(mockedRetry).toHaveBeenCalledTimes(2)
+  expect(mockedRetry.mock.calls.map((call) => call[1])).toEqual([
+    'failed_job',
+    'failed_job',
+  ])
+  expect(mockedStart).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a failed retry job becomes the target of the next retry', async () => {
+  mockedStart.mockResolvedValue(
+    job('failed', { job_id: 'original_job' }),
+  )
+  mockedRetry
+    .mockResolvedValueOnce(
+      job('failed', { job_id: 'first_retry_job' }),
+    )
+    .mockResolvedValueOnce(
+      job('completed', { job_id: 'second_retry_job' }),
+    )
+
+  render(<AnalyzeImage imageId="img_test" />)
+  await clickAnalyze()
+  await clickRetry()
+  await clickRetry()
+
+  expect(mockedRetry.mock.calls.map((call) => call[1])).toEqual([
+    'original_job',
+    'first_retry_job',
+  ])
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Analysis complete.',
+  )
+})
+
+test('blocks duplicate retries and aborts on unmount', async () => {
+  mockedStart.mockResolvedValue(
+    job('failed', { job_id: 'failed_job' }),
+  )
+
+  let finish!: (value: ImageAnalysisJob) => void
+  mockedRetry.mockReturnValue(
+    new Promise<ImageAnalysisJob>((resolve) => {
+      finish = resolve
+    }),
+  )
+
+  const view = render(<AnalyzeImage imageId="img_test" />)
+  await clickAnalyze()
+
+  await act(async () => {
+    const button = screen.getByRole('button', {
+      name: 'Retry image analysis',
+    })
+    fireEvent.click(button)
+    fireEvent.click(button)
+  })
+
+  expect(mockedRetry).toHaveBeenCalledOnce()
+  expect(
+    screen.getByRole('button', { name: 'Analyzing…' }),
+  ).toBeDisabled()
+
+  const signal = mockedRetry.mock.calls[0][2]
+  view.unmount()
+  expect(signal.aborted).toBe(true)
+
+  await act(async () => {
+    finish(job('queued', { job_id: 'retry_job' }))
   })
 
   expect(mockedProgress).not.toHaveBeenCalled()

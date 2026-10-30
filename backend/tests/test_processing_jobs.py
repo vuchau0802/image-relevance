@@ -211,3 +211,180 @@ def test_terminal_job_is_returned_without_reset(
     item = read_items(ctx, repeated)[0]
     assert item.status == status
     assert item.attempts == 1
+
+def make_failed_analysis(ctx):
+    job_id = repository.create_image_processing_job(
+        ctx.tenant, "selected-image"
+    )
+    item_id = read_items(ctx, job_id)[0].id
+
+    with ctx.factory.begin() as session:
+        session.get(Job, (ctx.tenant, job_id)).status = "failed"
+
+        item = session.get(JobItem, (ctx.tenant, item_id))
+        item.status = "failed"
+        item.attempts = 3
+        item.last_error = "Synthetic provider failure"
+
+        session.get(
+            Image, (ctx.tenant, "selected-image")
+        ).status = "failed"
+
+    return job_id, item_id
+
+
+def test_retry_preserves_failed_history(processing_database):
+    ctx = processing_database
+    failed_job_id, failed_item_id = make_failed_analysis(ctx)
+
+    retry_id = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+
+    assert retry_id != failed_job_id
+    items = read_items(ctx, retry_id)
+    assert len(items) == 1
+    assert items[0].image_id == "selected-image"
+    assert items[0].status == "pending"
+    assert items[0].attempts == 0
+    assert items[0].max_attempts == 3
+
+    with ctx.factory() as session:
+        original = session.get(
+            JobItem, (ctx.tenant, failed_item_id)
+        )
+        assert original.status == "failed"
+        assert original.attempts == 3
+        assert original.last_error == "Synthetic provider failure"
+        assert session.get(
+            Job, (ctx.tenant, failed_job_id)
+        ).status == "failed"
+        assert session.get(
+            Job, (ctx.tenant, retry_id)
+        ).status == "queued"
+        assert session.get(
+            Image, (ctx.tenant, "selected-image")
+        ).status == "pending"
+
+
+def test_repeated_retry_reuses_one_job(processing_database):
+    ctx = processing_database
+    failed_job_id, _ = make_failed_analysis(ctx)
+
+    first = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+    second = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+
+    assert second == first
+    assert len(read_items(ctx, first)) == 1
+
+    with ctx.factory() as session:
+        jobs = session.scalars(
+            select(Job).where(Job.tenant_id == ctx.tenant)
+        ).all()
+        assert len(jobs) == 2
+
+
+def test_retry_cannot_access_another_workspace(processing_database):
+    ctx = processing_database
+    failed_job_id, _ = make_failed_analysis(ctx)
+
+    with pytest.raises(repository.ProcessingImageNotFoundError):
+        repository.retry_image_processing_job(
+            ctx.other, "selected-image", failed_job_id
+        )
+
+    with ctx.factory() as session:
+        assert session.get(
+            Image, (ctx.tenant, "selected-image")
+        ).status == "failed"
+
+
+def test_retry_requires_failure_for_the_selected_image(
+    processing_database,
+):
+    ctx = processing_database
+    failed_job_id, _ = make_failed_analysis(ctx)
+
+    with pytest.raises(repository.ImageNotProcessableError):
+        repository.retry_image_processing_job(
+            ctx.tenant, "another-image", failed_job_id
+        )
+
+    with ctx.factory() as session:
+        assert session.get(
+            Image, (ctx.tenant, "another-image")
+        ).status == "pending"
+
+
+@pytest.mark.parametrize(
+    "status", ["pending", "processing", "completed", "needs_review"]
+)
+def test_retry_rejects_an_item_that_has_not_failed(
+    processing_database, status
+):
+    ctx = processing_database
+    job_id, item_id = make_failed_analysis(ctx)
+
+    with ctx.factory.begin() as session:
+        session.get(
+            JobItem, (ctx.tenant, item_id)
+        ).status = status
+
+    with pytest.raises(repository.ImageNotProcessableError):
+        repository.retry_image_processing_job(
+            ctx.tenant, "selected-image", job_id
+        )
+
+
+def test_retry_reuses_active_bulk_work(processing_database):
+    ctx = processing_database
+    failed_job_id, _ = make_failed_analysis(ctx)
+
+    bulk_id = repository.create_processing_job(
+        ctx.tenant,
+        "retry-through-bulk",
+        source_status="failed",
+    )
+
+    retry_id = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+
+    assert retry_id == bulk_id
+
+
+def test_old_retry_request_does_not_reset_a_failed_retry(
+    processing_database,
+):
+    ctx = processing_database
+    failed_job_id, _ = make_failed_analysis(ctx)
+
+    retry_id = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+    retry_item_id = read_items(ctx, retry_id)[0].id
+
+    with ctx.factory.begin() as session:
+        session.get(Job, (ctx.tenant, retry_id)).status = "failed"
+        item = session.get(JobItem, (ctx.tenant, retry_item_id))
+        item.status = "failed"
+        item.attempts = 3
+        session.get(
+            Image, (ctx.tenant, "selected-image")
+        ).status = "failed"
+
+    repeated = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", failed_job_id
+    )
+    assert repeated == retry_id
+    assert read_items(ctx, retry_id)[0].status == "failed"
+
+    next_retry = repository.retry_image_processing_job(
+        ctx.tenant, "selected-image", retry_id
+    )
+    assert next_retry != retry_id
+    assert read_items(ctx, next_retry)[0].status == "pending"

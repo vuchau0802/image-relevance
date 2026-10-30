@@ -594,3 +594,99 @@ def create_image_processing_job(
         job_id = job.id
 
     return job_id
+
+def retry_image_processing_job(
+    tenant_id: str,
+    image_id: str,
+    failed_job_id: str,
+) -> str:
+    with SessionLocal.begin() as session:
+        image = session.scalar(
+            select(Image)
+            .where(
+                Image.tenant_id == tenant_id,
+                Image.id == image_id,
+            )
+            .with_for_update()
+        )
+
+        if image is None:
+            raise ProcessingImageNotFoundError(
+                "Image not found for this workspace"
+            )
+
+        # Bind the retry to one specific failed analysis.
+        failed_item = session.scalar(
+            select(JobItem).where(
+                JobItem.tenant_id == tenant_id,
+                JobItem.job_id == failed_job_id,
+                JobItem.image_id == image_id,
+                JobItem.status == "failed",
+            )
+        )
+
+        if failed_item is None:
+            raise ImageNotProcessableError(
+                "A failed analysis job is required for retry"
+            )
+
+        identity = (
+            f"{image.id}:{image.checksum}:{failed_item.id}"
+        )
+        digest = hashlib.sha256(
+            identity.encode("utf-8")
+        ).hexdigest()
+        idempotency_key = f"image-analysis-retry-v1:{digest}"
+
+        # Repeated requests for the same failure return one retry job.
+        existing_job_id = session.scalar(
+            select(Job.id).where(
+                Job.tenant_id == tenant_id,
+                Job.idempotency_key == idempotency_key,
+            )
+        )
+        if existing_job_id is not None:
+            return existing_job_id
+
+        active_job_id = session.scalar(
+            select(JobItem.job_id)
+            .where(
+                JobItem.tenant_id == tenant_id,
+                JobItem.image_id == image_id,
+                JobItem.status.in_(["pending", "processing"]),
+            )
+            .order_by(JobItem.created_at, JobItem.id)
+            .limit(1)
+        )
+        if active_job_id is not None:
+            return active_job_id
+
+        if image.status != "failed":
+            raise ImageNotProcessableError(
+                "Only failed images can retry analysis"
+            )
+
+        job = Job(
+            tenant_id=tenant_id,
+            id=str(uuid4()),
+            idempotency_key=idempotency_key,
+            status="queued",
+        )
+        session.add(job)
+        session.flush()
+
+        session.add(
+            JobItem(
+                tenant_id=tenant_id,
+                id=str(uuid4()),
+                job_id=job.id,
+                image_id=image_id,
+                status="pending",
+                attempts=0,
+                max_attempts=3,
+            )
+        )
+        image.status = "pending"
+        job_id = job.id
+
+    return job_id

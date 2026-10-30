@@ -159,7 +159,22 @@ export default function ImageLibrary({
           )}
 
           {image.status === 'failed' && (
-            <p>Image analysis failed. This image needs attention.</p>
+            image.failed_analysis_job_id ? (
+              <AnalyzeImage
+                key={`retry-${image.image_id}-${image.failed_analysis_job_id}`}
+                imageId={image.image_id}
+                initialFailedJobId={image.failed_analysis_job_id}
+                onImageReady={() => {
+                  onImageReady?.()
+                  refresh()
+                }}
+              />
+            ) : (
+              <p>
+                Image analysis failed. No retryable analysis job
+                was found. Refresh your images to check again.
+              </p>
+            )
           )}
           <DeleteImage
             imageId={image.image_id}

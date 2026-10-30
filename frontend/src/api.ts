@@ -326,6 +326,7 @@ export async function prepareImageEmbedding(
 }
 
 export interface ImageLibraryItem {
+  failed_analysis_job_id?: string | null
   image_id: string
   embedding_ready: boolean
   status: ImageUploadResult['status']
@@ -480,4 +481,32 @@ export async function deleteImage(
             : `Could not delete this image (${response.status}).`,
     )
   }
+}
+
+export async function retryImageAnalysis(
+  imageId: string,
+  failedJobId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<ImageAnalysisJob> {
+  const response = await apiFetch(
+    `/images/${encodeURIComponent(imageId)}/analysis-jobs/${encodeURIComponent(failedJobId)}/retry`,
+    signal,
+    accessToken,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Image not found. Refresh your images.'
+        : response.status === 409
+          ? 'This analysis cannot be retried. Refresh your images to check its current status.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not retry image analysis (${response.status}).`,
+    )
+  }
+
+  return response.json()
 }

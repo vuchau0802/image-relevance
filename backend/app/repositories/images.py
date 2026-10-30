@@ -1,6 +1,7 @@
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import distinct_on
 from app.database import SessionLocal
-from app.models import Image
+from app.models import Image, JobItem
 from app.repositories.metadata import persist_classification
 from app.repositories.image_readiness import ready_image_ids
 from app.services.classification import ClassificationResult
@@ -75,10 +76,36 @@ def list_images(
             {record.id for record in records[:limit] if record.status == 'completed'},
         )
 
+        failed_ids = {
+            record.id
+            for record in records[:limit]
+            if record.status == "failed"
+        }
+
+        failed_jobs = {}
+        if failed_ids:
+            rows = session.execute(
+                select(JobItem.image_id, JobItem.job_id)
+                .where(
+                    JobItem.tenant_id == tenant_id,
+                    JobItem.image_id.in_(failed_ids),
+                    JobItem.status == "failed",
+                )
+                .ext(distinct_on(JobItem.image_id))
+                .order_by(
+                    JobItem.image_id,
+                    JobItem.created_at.desc(),
+                    JobItem.id.desc(),
+                )
+            ).all()
+
+            failed_jobs = dict(rows)
+
         items = [
             ImageListItem(
                 image_id=record.id,
                 embedding_ready=record.id in ready_ids,
+                failed_analysis_job_id=failed_jobs.get(record.id),
                 status=record.status,
                 creator=record.creator,
                 created_at=record.created_at,
