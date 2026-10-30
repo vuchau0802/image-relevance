@@ -7,7 +7,7 @@ import ImageAttribution from './ImageAttribution'
 import PostPicker from './PostPicker'
 import CreatePostForm from './CreatePostForm'
 import EditPostForm from './EditPostForm'
-import PreparePost from './PreparePost'
+import PostPreparation from './PostPreparation'
 import UploadImageForm from './UploadImageForm'
 import ImageLibrary from './ImageLibrary'
 import DeletePost from './DeletePost'
@@ -142,7 +142,7 @@ function App() {
       <section aria-live="polite" aria-busy={loading}>
         {postId && loading && <p>Finding suitable images…</p>}
         {postId && (
-          <PreparePost
+          <PostPreparation
             key={`post-preparation-${postId}-${postsVersion}`}
             postId={postId}
             onReady={() => setRetry((value) => value + 1)}

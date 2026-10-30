@@ -106,7 +106,11 @@ def original_payload(ctx):
 def test_reads_owned_post(editing_database):
     ctx = editing_database
 
-    assert posts.get_post(ctx.owner, "shared-post") == ctx.original
+    detail = posts.get_post(ctx.owner, "shared-post")
+    assert detail.model_dump() == {
+        **ctx.original.model_dump(),
+        "failed_preparation_job_id": None,
+    }
 
 
 def test_update_persists_without_changing_id_or_other_owner(
@@ -125,7 +129,11 @@ def test_update_persists_without_changing_id_or_other_owner(
     assert result.title == "Updated title"
     assert result.content == "Updated forest content."
     assert result.required_subject == "forest"
-    assert posts.get_post(ctx.owner, "shared-post") == result
+    detail = posts.get_post(ctx.owner, "shared-post")
+    assert detail.model_dump() == {
+        **result.model_dump(),
+        "failed_preparation_job_id": None,
+    }
 
     other = posts.get_post(ctx.other, "shared-post")
     assert other.title == "Other owner's post"

@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import {
   getImagesPage,
   prepareImageEmbedding,
+  retryEmbeddingPreparation,
   retryImageAnalysis,
   startImageAnalysis,
 } from './api'
@@ -25,6 +26,7 @@ vi.mock('./api', () => ({
   startImageAnalysis: vi.fn(),
   getImageAnalysisJob: vi.fn(),
   prepareImageEmbedding: vi.fn(),
+  retryEmbeddingPreparation: vi.fn(),
   getEmbeddingJob: vi.fn(),
 }))
 
@@ -49,6 +51,7 @@ beforeEach(() => {
   getSessionToken.mockReset()
   getSessionToken.mockResolvedValue('synthetic-token')
   vi.mocked(prepareImageEmbedding).mockReset()
+  vi.mocked(retryEmbeddingPreparation).mockReset()
   vi.mocked(retryImageAnalysis).mockReset()
   vi.mocked(startImageAnalysis).mockReset()
 })
@@ -519,4 +522,121 @@ test('failed image without a job explains why retry is unavailable', async () =>
   ).not.toBeInTheDocument()
   expect(retryImageAnalysis).not.toHaveBeenCalled()
   expect(startImageAnalysis).not.toHaveBeenCalled()
+})
+
+
+test('discovered preparation failure retries and refreshes the library', async () => {
+  const user = userEvent.setup()
+  const onImageReady = vi.fn()
+
+  mockedPage
+    .mockResolvedValueOnce({
+      items: [{
+        ...image('img_retry'),
+        status: 'completed',
+        failed_preparation_job_id: 'failed_preparation_job',
+      }],
+      next_offset: null,
+    })
+    .mockResolvedValue({
+      items: [{
+        ...image('img_retry'),
+        status: 'completed',
+        embedding_ready: true,
+        failed_preparation_job_id: null,
+      }],
+      next_offset: null,
+    })
+
+  vi.mocked(retryEmbeddingPreparation).mockResolvedValue(
+    embeddingJob('completed'),
+  )
+
+  render(<ImageLibrary onImageReady={onImageReady} />)
+
+  const retry = await screen.findByRole('button', {
+    name: 'Retry image preparation',
+  })
+  expect(retryEmbeddingPreparation).not.toHaveBeenCalled()
+
+  await user.click(retry)
+
+  expect(
+    await screen.findByText('Ready for matching.'),
+  ).toBeInTheDocument()
+
+  expect(retryEmbeddingPreparation).toHaveBeenCalledExactlyOnceWith(
+    'image',
+    'img_retry',
+    'failed_preparation_job',
+    expect.any(AbortSignal),
+    'synthetic-token',
+  )
+  expect(prepareImageEmbedding).not.toHaveBeenCalled()
+  expect(mockedPage).toHaveBeenCalledTimes(2)
+  expect(onImageReady).toHaveBeenCalledOnce()
+  expect(
+    screen.queryByRole('button', {
+      name: 'Retry image preparation',
+    }),
+  ).not.toBeInTheDocument()
+})
+
+test('discovered preparation failure preserves retry after a request error', async () => {
+  const user = userEvent.setup()
+  const onImageReady = vi.fn()
+
+  mockedPage.mockResolvedValue({
+    items: [{
+      ...image('img_retry'),
+      status: 'completed',
+      failed_preparation_job_id: 'failed_preparation_job',
+    }],
+    next_offset: null,
+  })
+
+  vi.mocked(retryEmbeddingPreparation).mockRejectedValue(
+    new Error('Preparation service unavailable'),
+  )
+
+  render(<ImageLibrary onImageReady={onImageReady} />)
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Retry image preparation',
+    }),
+  )
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Preparation service unavailable',
+  )
+  expect(onImageReady).not.toHaveBeenCalled()
+  expect(mockedPage).toHaveBeenCalledOnce()
+
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Retry image preparation',
+    }),
+  )
+
+  await waitFor(() => {
+    expect(retryEmbeddingPreparation).toHaveBeenCalledTimes(2)
+    expect(
+      screen.getByRole('button', {
+        name: 'Retry image preparation',
+      }),
+    ).toBeEnabled()
+  })
+
+  expect(
+    vi.mocked(retryEmbeddingPreparation).mock.calls.map(
+      (call) => call[2],
+    ),
+  ).toEqual([
+    'failed_preparation_job',
+    'failed_preparation_job',
+  ])
+  expect(prepareImageEmbedding).not.toHaveBeenCalled()
+  expect(onImageReady).not.toHaveBeenCalled()
+  expect(mockedPage).toHaveBeenCalledOnce()
 })

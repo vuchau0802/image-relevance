@@ -4,10 +4,13 @@ from app.database import SessionLocal
 from app.models import EmbeddingJobItem, Post
 from app.schemas.post import (
     PostCreate,
+    PostUpdate,
+    PostDetail,
     PostInput,
     PostListResponse,
     PostSummary,
 )
+from app.repositories.post_readiness import failed_post_preparation_job
 
 def list_posts(
     tenant_id: str,
@@ -61,18 +64,25 @@ class PostNotFoundError(LookupError):
 def get_post(
     tenant_id: str,
     post_id: str,
-) -> PostInput:
+) -> PostDetail:
     with SessionLocal() as session:
         record = session.get(Post, (tenant_id, post_id))
 
         if record is None:
             raise PostNotFoundError("Post not found")
 
-        return PostInput(
+        post = PostInput(
             id=record.id,
             title=record.title,
             content=record.content,
             required_subject=record.required_subject,
+        )
+
+        return PostDetail(
+            **post.model_dump(),
+            failed_preparation_job_id=failed_post_preparation_job(
+                session, tenant_id, post
+            ),
         )
 
 

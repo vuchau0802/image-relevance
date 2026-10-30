@@ -1,12 +1,12 @@
 from types import SimpleNamespace
 from uuid import uuid4
-
+from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker
 
 from app.database import engine
-from app.models import Image, ImageEmbedding, ImageMetadataRecord
+from app.models import EmbeddingJob, EmbeddingJobItem, Image, ImageEmbedding, ImageMetadataRecord
 from app.repositories import image_readiness, images
 from app.schemas.image import ImageMetadata
 from app.services.embedding_text import EMBEDDING_TASK_TYPE, prepare_image_input
@@ -195,9 +195,143 @@ def test_readiness_queries_are_batched_for_the_page(readiness_database):
 
     event.listen(ctx.connection, "before_cursor_execute", record_select)
     try:
+        single = images.list_images(ctx.owner, limit=1)
+        single_count = len(statements)
+        statements.clear()
         result = images.list_images(ctx.owner)
     finally:
         event.remove(ctx.connection, "before_cursor_execute", record_select)
 
+    assert len(single.items) == 1
     assert len(result.items) == 7
-    assert len(statements) <= 3
+    # Images, shared metadata, embeddings, and preparation jobs.
+    assert len(statements) == single_count
+    assert len(statements) <= 4
+    assert sum(
+        "FROM image_metadata" in statement
+        for statement in statements
+    ) == 1
+
+def save_preparation_job(
+    ctx,
+    *,
+    tenant=None,
+    status="failed",
+    created_at=None,
+    input_hash=None,
+    model=None,
+    dimensions=None,
+):
+    owner = tenant or ctx.owner
+    job_id = str(uuid4())
+    now = datetime.now(timezone.utc)
+
+    with ctx.factory.begin() as session:
+        session.add(EmbeddingJob(
+            tenant_id=owner,
+            id=job_id,
+            idempotency_key=f"discovery-{job_id}",
+            model=model or ctx.settings.embedding_model,
+            dimensions=(
+                ctx.settings.embedding_dimensions
+                if dimensions is None else dimensions
+            ),
+            task_type=EMBEDDING_TASK_TYPE,
+            status="failed" if status == "failed" else "running",
+        ))
+        session.flush()
+
+        session.add(EmbeddingJobItem(
+            tenant_id=owner,
+            id=str(uuid4()),
+            job_id=job_id,
+            source_type="image",
+            source_id="shared-image",
+            input_text=prepare_image_input(ctx.metadata).text,
+            input_hash=input_hash or ctx.input_hash,
+            status=status,
+            attempts=3 if status == "failed" else 1,
+            max_attempts=3,
+            created_at=created_at or now,
+            claim_token=(
+                str(uuid4()) if status == "processing" else None
+            ),
+            lease_expires_at=(
+                now + timedelta(minutes=5)
+                if status == "processing" else None
+            ),
+        ))
+
+    return job_id
+
+
+def test_preparation_discovery_returns_latest_failure(
+    readiness_database,
+):
+    ctx = readiness_database
+    now = datetime.now(timezone.utc)
+
+    save_preparation_job(
+        ctx, created_at=now - timedelta(hours=1)
+    )
+    latest = save_preparation_job(ctx, created_at=now)
+
+    assert listed_image(ctx).failed_preparation_job_id == latest
+
+
+def test_preparation_discovery_is_workspace_scoped(
+    readiness_database,
+):
+    ctx = readiness_database
+    now = datetime.now(timezone.utc)
+
+    owner_job = save_preparation_job(
+        ctx, created_at=now - timedelta(hours=1)
+    )
+    other_job = save_preparation_job(
+        ctx, tenant=ctx.other, created_at=now
+    )
+
+    assert listed_image(ctx).failed_preparation_job_id == owner_job
+    other_image = images.list_images(ctx.other).items[0]
+    assert other_image.failed_preparation_job_id == other_job
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"input_hash": "b" * 64},
+        {"model": "old-model"},
+        {"dimensions": 3},
+    ],
+)
+def test_preparation_discovery_ignores_outdated_failures(
+    readiness_database, overrides
+):
+    ctx = readiness_database
+    save_preparation_job(ctx, **overrides)
+
+    assert listed_image(ctx).failed_preparation_job_id is None
+
+
+@pytest.mark.parametrize("status", ["pending", "processing"])
+def test_active_preparation_hides_old_failure(
+    readiness_database, status
+):
+    ctx = readiness_database
+    save_preparation_job(ctx)
+    save_preparation_job(ctx, status=status)
+
+    assert listed_image(ctx).failed_preparation_job_id is None
+
+
+def test_ready_embedding_hides_historical_preparation_failure(
+    readiness_database,
+):
+    ctx = readiness_database
+    save_preparation_job(ctx)
+    save_embedding(ctx)
+
+    result = listed_image(ctx)
+    assert result.embedding_ready is True
+    assert result.failed_preparation_job_id is None

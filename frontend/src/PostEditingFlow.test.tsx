@@ -61,7 +61,9 @@ beforeEach(() => {
     next_offset: null,
   })
   mocked.getPosts.mockResolvedValue([original, other])
-  mocked.getPost.mockResolvedValue(original)
+  mocked.getPost.mockImplementation(async (postId) =>
+    postId === original.id ? original : other,
+  )
   mocked.getRecommendations.mockImplementation((postId) =>
     Promise.resolve({
       post_id: postId,
@@ -195,11 +197,17 @@ test('failed save keeps the editor open without refreshing the post', async () =
 test('switching posts closes the editor and aborts its load', async () => {
   const user = userEvent.setup()
   let finish!: (post: CreatedPost) => void
-  mocked.getPost.mockReturnValue(
-    new Promise<CreatedPost>((resolve) => {
-      finish = resolve
-    }),
-  )
+  const pendingEditor = new Promise<CreatedPost>((resolve) => {
+    finish = resolve
+  })
+
+  mocked.getPost
+    .mockResolvedValueOnce(original)
+    .mockImplementation((postId) =>
+      postId === original.id
+        ? pendingEditor
+        : Promise.resolve(other),
+    )
 
   render(<App />)
   await screen.findByRole('heading', { name: 'No confident match' })
@@ -208,9 +216,9 @@ test('switching posts closes the editor and aborts its load', async () => {
     screen.getByRole('button', { name: 'Edit selected post' }),
   )
   await waitFor(() => {
-    expect(mocked.getPost).toHaveBeenCalledOnce()
+    expect(mocked.getPost).toHaveBeenCalledTimes(2)
   })
-  const signal = mocked.getPost.mock.calls[0][1]
+  const signal = mocked.getPost.mock.calls[1][1]
 
   await user.selectOptions(
     screen.getByRole('combobox', { name: 'Blog post' }),

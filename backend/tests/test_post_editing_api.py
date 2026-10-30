@@ -55,7 +55,10 @@ def test_reads_owned_post(editing_api):
     response = ctx.client.get(ctx.path)
 
     assert response.status_code == 200
-    assert response.json() == ctx.stored.model_dump()
+    assert response.json() == {
+        **ctx.stored.model_dump(),
+        "failed_preparation_job_id": None,
+    }
     ctx.reader.assert_called_once_with(
         tenant_id="ws_owner",
         post_id="post_test",

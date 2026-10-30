@@ -146,7 +146,9 @@ export default function ImageLibrary({
 
           {image.status === 'completed' && !image.embedding_ready && (
             <PrepareImage
+              key={`preparation-${image.image_id}-${image.failed_preparation_job_id ?? 'new'}`}
               imageId={image.image_id}
+              initialFailedJobId={image.failed_preparation_job_id}
               onReady={() => {
                 onImageReady?.()
                 refresh()

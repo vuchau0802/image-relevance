@@ -14,6 +14,7 @@ from app.repositories.posts import (
 )
 from app.schemas.post import (
     PostCreate,
+    PostDetail,
     PostInput,
     PostListResponse,
     PostUpdate,
@@ -87,14 +88,14 @@ def prepare_post_embedding(
         )
     )
 
-@router.get("/{post_id}", response_model=PostInput)
+@router.get("/{post_id}", response_model=PostDetail)
 def read_post(
     post_id: Annotated[
         str,
         Path(min_length=1, max_length=50),
     ],
     tenant_id: CurrentWorkspace,
-) -> PostInput:
+) -> PostDetail:
     try:
         return get_post(
             tenant_id=tenant_id,

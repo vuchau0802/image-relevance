@@ -12,6 +12,9 @@ class PostInput(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
     required_subject: str = Field(min_length=1, max_length=200)
 
+class PostDetail(PostInput):
+    failed_preparation_job_id: str | None = None
+
 class PostSummary(BaseModel):
     id: str
     title: str

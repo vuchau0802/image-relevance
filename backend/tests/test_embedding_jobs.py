@@ -24,6 +24,9 @@ from app.repositories import embeddings as embedding_cache
 from app.services import embeddings as embedding_service
 from app.workers import embedding_runner as embedding_worker
 from app.repositories import ai_calls as audit_repository
+from app.models import PostEmbedding
+from app.repositories import post_readiness
+from app.repositories import posts as post_repository
 
 pytestmark = pytest.mark.integration
 
@@ -1363,3 +1366,421 @@ def test_image_embedding_configuration_changes_create_new_job(
         job = session.get(EmbeddingJob, (tenant, second))
         assert job.model == ctx.settings.embedding_model
         assert job.dimensions == ctx.settings.embedding_dimensions
+
+def make_failed_preparation(ctx, source_type):
+    tenant = ctx.tenants[0]
+    source_id = f"shared-{source_type}"
+
+    create_job = (
+        repository.create_image_embedding_job
+        if source_type == "image"
+        else repository.create_post_embedding_job
+    )
+    job_id = create_job(tenant, source_id)
+    item = read_items(ctx.factory, tenant, job_id)[0]
+
+    with ctx.factory.begin() as session:
+        session.get(
+            EmbeddingJob, (tenant, job_id)
+        ).status = "failed"
+
+        stored = session.get(
+            EmbeddingJobItem, (tenant, item.id)
+        )
+        stored.status = "failed"
+        stored.attempts = 3
+        stored.last_error = "Synthetic embedding failure"
+
+    return tenant, source_id, job_id, item
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_preserves_failed_history(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, original = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    retry_id = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+
+    assert retry_id != failed_id
+    items = read_items(ctx.factory, tenant, retry_id)
+    assert len(items) == 1
+    assert items[0].source_type == source_type
+    assert items[0].source_id == source_id
+    assert items[0].input_text == original.input_text
+    assert items[0].input_hash == original.input_hash
+    assert items[0].status == "pending"
+    assert items[0].attempts == 0
+
+    with ctx.factory() as session:
+        old_item = session.get(
+            EmbeddingJobItem, (tenant, original.id)
+        )
+        assert old_item.status == "failed"
+        assert old_item.attempts == 3
+        assert old_item.last_error == "Synthetic embedding failure"
+
+        old_job = session.get(
+            EmbeddingJob, (tenant, failed_id)
+        )
+        new_job = session.get(
+            EmbeddingJob, (tenant, retry_id)
+        )
+        assert old_job.status == "failed"
+        assert new_job.status == "queued"
+        assert new_job.model == old_job.model
+        assert new_job.dimensions == old_job.dimensions
+        assert new_job.task_type == old_job.task_type
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_reuses_repeated_request(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    first = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+    second = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+
+    assert second == first
+    assert len(read_items(ctx.factory, tenant, first)) == 1
+
+    with ctx.factory() as session:
+        jobs = session.scalars(
+            select(EmbeddingJob).where(
+                EmbeddingJob.tenant_id == tenant
+            )
+        ).all()
+        assert len(jobs) == 2
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_rejects_other_workspace_failure(
+    job_database, source_type
+):
+    ctx = job_database
+    _, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    # Both workspaces have the same source ID.
+    with pytest.raises(repository.EmbeddingRetryNotAllowedError):
+        repository.retry_embedding_job(
+            ctx.tenants[1], source_type, source_id, failed_id
+        )
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_rejects_changed_content(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    with ctx.factory.begin() as session:
+        if source_type == "post":
+            session.get(
+                Post, (tenant, source_id)
+            ).content = "Changed article content."
+        else:
+            session.get(
+                ImageMetadataRecord, (tenant, source_id)
+            ).caption = "A different description of the red fox."
+
+    with pytest.raises(
+        repository.EmbeddingRetryNotAllowedError,
+        match="Content has changed",
+    ):
+        repository.retry_embedding_job(
+            tenant, source_type, source_id, failed_id
+        )
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_rejects_changed_settings(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, source_type)
+    )
+    ctx.settings.embedding_model = "different-model"
+
+    with pytest.raises(
+        repository.EmbeddingRetryNotAllowedError,
+        match="settings have changed",
+    ):
+        repository.retry_embedding_job(
+            tenant, source_type, source_id, failed_id
+        )
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_requires_failed_item(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, item = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    with ctx.factory.begin() as session:
+        session.get(
+            EmbeddingJobItem, (tenant, item.id)
+        ).status = "completed"
+        session.get(
+            EmbeddingJob, (tenant, failed_id)
+        ).status = "completed"
+
+    with pytest.raises(
+        repository.EmbeddingRetryNotAllowedError,
+        match="failed preparation item",
+    ):
+        repository.retry_embedding_job(
+            tenant, source_type, source_id, failed_id
+        )
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_embedding_retry_reuses_active_bulk_job(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, original = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    bulk_id = repository.create_embedding_job(
+        tenant, f"active-bulk-{source_type}"
+    )
+    before = read_items(ctx.factory, tenant, bulk_id)
+
+    retry_id = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+
+    assert retry_id == bulk_id
+    after = read_items(ctx.factory, tenant, bulk_id)
+    assert {item.id for item in after} == {
+        item.id for item in before
+    }
+
+    selected = next(
+        item for item in after
+        if item.source_type == source_type
+        and item.source_id == source_id
+    )
+    assert selected.status == "pending"
+    assert selected.attempts == 0
+
+    with ctx.factory() as session:
+        old_item = session.get(
+            EmbeddingJobItem, (tenant, original.id)
+        )
+        assert old_item.status == "failed"
+        assert old_item.attempts == 3
+
+
+@pytest.mark.parametrize("source_type", ["post", "image"])
+def test_failed_embedding_retry_can_be_retried_without_resetting_history(
+    job_database, source_type
+):
+    ctx = job_database
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, source_type)
+    )
+
+    first_retry = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+    retry_item = read_items(
+        ctx.factory, tenant, first_retry
+    )[0]
+
+    with ctx.factory.begin() as session:
+        session.get(
+            EmbeddingJob, (tenant, first_retry)
+        ).status = "failed"
+
+        stored = session.get(
+            EmbeddingJobItem, (tenant, retry_item.id)
+        )
+        stored.status = "failed"
+        stored.attempts = 3
+        stored.last_error = "Retry also failed"
+
+    # Replaying the original request must not reset its retry.
+    repeated = repository.retry_embedding_job(
+        tenant, source_type, source_id, failed_id
+    )
+    assert repeated == first_retry
+
+    second_retry = repository.retry_embedding_job(
+        tenant, source_type, source_id, first_retry
+    )
+    assert second_retry not in {failed_id, first_retry}
+
+    new_items = read_items(
+        ctx.factory, tenant, second_retry
+    )
+    assert len(new_items) == 1
+    assert new_items[0].status == "pending"
+    assert new_items[0].attempts == 0
+    assert new_items[0].input_hash == retry_item.input_hash
+
+    with ctx.factory() as session:
+        old_item = session.get(
+            EmbeddingJobItem, (tenant, retry_item.id)
+        )
+        assert old_item.status == "failed"
+        assert old_item.attempts == 3
+        assert old_item.last_error == "Retry also failed"
+        assert session.get(
+            EmbeddingJob, (tenant, first_retry)
+        ).status == "failed"
+
+@pytest.fixture
+def post_discovery(job_database, monkeypatch):
+    ctx = job_database
+    monkeypatch.setattr(
+        post_repository, "SessionLocal", ctx.factory
+    )
+    monkeypatch.setattr(
+        post_readiness, "get_settings", lambda: ctx.settings
+    )
+    return ctx
+
+
+def test_post_discovery_returns_latest_failed_retry(post_discovery):
+    ctx = post_discovery
+    tenant, source_id, failed_id, original = (
+        make_failed_preparation(ctx, "post")
+    )
+    retry_id = repository.retry_embedding_job(
+        tenant, "post", source_id, failed_id
+    )
+    retry_item = read_items(ctx.factory, tenant, retry_id)[0]
+    now = datetime.now(timezone.utc)
+
+    with ctx.factory.begin() as session:
+        session.get(
+            EmbeddingJobItem, (tenant, original.id)
+        ).created_at = now - timedelta(hours=1)
+
+        item = session.get(
+            EmbeddingJobItem, (tenant, retry_item.id)
+        )
+        item.status = "failed"
+        item.attempts = 3
+        item.created_at = now
+        session.get(
+            EmbeddingJob, (tenant, retry_id)
+        ).status = "failed"
+
+    detail = post_repository.get_post(tenant, source_id)
+    assert detail.failed_preparation_job_id == retry_id
+
+
+def test_post_discovery_excludes_other_workspace(post_discovery):
+    ctx = post_discovery
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, "post")
+    )
+
+    owner = post_repository.get_post(tenant, source_id)
+    other = post_repository.get_post(
+        ctx.tenants[1], source_id
+    )
+
+    assert owner.failed_preparation_job_id == failed_id
+    assert other.failed_preparation_job_id is None
+
+
+@pytest.mark.parametrize("change", ["content", "model", "dimensions"])
+def test_post_discovery_ignores_outdated_failure(
+    post_discovery, change
+):
+    ctx = post_discovery
+    tenant, source_id, _, _ = (
+        make_failed_preparation(ctx, "post")
+    )
+
+    if change == "content":
+        with ctx.factory.begin() as session:
+            session.get(
+                Post, (tenant, source_id)
+            ).content = "A newly edited article."
+    elif change == "model":
+        ctx.settings.embedding_model = "different-model"
+    else:
+        ctx.settings.embedding_dimensions = 3
+
+    detail = post_repository.get_post(tenant, source_id)
+    assert detail.failed_preparation_job_id is None
+
+
+@pytest.mark.parametrize("status", ["pending", "processing"])
+def test_post_discovery_hides_failure_when_retry_is_active(
+    post_discovery, status
+):
+    ctx = post_discovery
+    tenant, source_id, failed_id, _ = (
+        make_failed_preparation(ctx, "post")
+    )
+    retry_id = repository.retry_embedding_job(
+        tenant, "post", source_id, failed_id
+    )
+    retry_item = read_items(ctx.factory, tenant, retry_id)[0]
+
+    if status == "processing":
+        with ctx.factory.begin() as session:
+            item = session.get(
+                EmbeddingJobItem, (tenant, retry_item.id)
+            )
+            item.status = "processing"
+            item.claim_token = str(uuid4())
+            item.lease_expires_at = (
+                datetime.now(timezone.utc) + timedelta(minutes=5)
+            )
+            session.get(
+                EmbeddingJob, (tenant, retry_id)
+            ).status = "running"
+
+    detail = post_repository.get_post(tenant, source_id)
+    assert detail.failed_preparation_job_id is None
+
+
+def test_post_discovery_hides_failure_when_embedding_is_ready(
+    post_discovery,
+):
+    ctx = post_discovery
+    tenant, source_id, _, original = (
+        make_failed_preparation(ctx, "post")
+    )
+
+    with ctx.factory.begin() as session:
+        session.add(PostEmbedding(
+            tenant_id=tenant,
+            post_id=source_id,
+            model=ctx.settings.embedding_model,
+            dimensions=ctx.settings.embedding_dimensions,
+            task_type="SEMANTIC_SIMILARITY",
+            input_hash=original.input_hash,
+            vector=[1.0, 0.0],
+        ))
+
+    detail = post_repository.get_post(tenant, source_id)
+    assert detail.failed_preparation_job_id is None

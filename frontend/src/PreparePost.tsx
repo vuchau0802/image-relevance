@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getEmbeddingJob,
   preparePostEmbedding,
+  retryEmbeddingPreparation,
 } from './api'
 import type { EmbeddingJob } from './api'
 import { useSessionToken } from './useSessionToken'
@@ -26,9 +27,11 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 
 export default function PreparePost({
   postId,
+  initialFailedJobId,
   onReady,
 }: {
   postId: string
+  initialFailedJobId?: string | null
   onReady: () => void
 }) {
   const getSessionToken = useSessionToken()
@@ -41,6 +44,18 @@ export default function PreparePost({
     return () => activeRequest.current?.abort()
   }, [])
 
+  const failedJobId = job === null
+    ? initialFailedJobId
+    : job.failed > 0 &&
+        (
+          job.status === 'failed' ||
+          job.status === 'completed_with_errors'
+        )
+      ? job.job_id
+      : null
+
+  const canRetry = Boolean(failedJobId)
+
   async function prepare() {
     if (activeRequest.current) {
       return
@@ -50,14 +65,24 @@ export default function PreparePost({
     activeRequest.current = controller
     setBusy(true)
     setError('')
-    setJob(null)
 
     try {
-      let current = await preparePostEmbedding(
-        postId,
-        controller.signal,
-        await getSessionToken(),
-      )
+      const token = await getSessionToken()
+      if (controller.signal.aborted) return
+
+      let current = failedJobId
+        ? await retryEmbeddingPreparation(
+            'post',
+            postId,
+            failedJobId,
+            controller.signal,
+            token,
+          )
+        : await preparePostEmbedding(
+            postId,
+            controller.signal,
+            token,
+          )
 
       while (!controller.signal.aborted) {
         setJob(current)
@@ -115,7 +140,7 @@ export default function PreparePost({
         disabled={busy}
         onClick={() => void prepare()}
       >
-        {busy ? 'Preparing…' : 'Prepare for matching'}
+        {busy ? 'Preparing…' : canRetry ? 'Retry post preparation' : 'Prepare for matching'}
       </button>
 
       <div role="status">

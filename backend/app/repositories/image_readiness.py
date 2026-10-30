@@ -4,17 +4,18 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.models import ImageEmbedding, ImageMetadataRecord
+from app.models import EmbeddingJob, EmbeddingJobItem,ImageEmbedding, ImageMetadataRecord
 from app.schemas.image import ImageMetadata
 from app.services.embedding_text import EMBEDDING_TASK_TYPE, prepare_image_input
 from app.services.embedding_vectors import InvalidEmbeddingError, normalize_embedding
 
 
-def ready_image_ids(session, tenant_id: str, image_ids: set[str]) -> set[str]:
+def current_image_hashes(
+    session, tenant_id: str, image_ids: set[str],
+) -> dict[str, str]:
     if not image_ids:
-        return set()
+        return {}
 
-    settings = get_settings()
     metadata_rows = session.scalars(
         select(ImageMetadataRecord).where(
             ImageMetadataRecord.tenant_id == tenant_id,
@@ -35,6 +36,26 @@ def ready_image_ids(session, tenant_id: str, image_ids: set[str]) -> set[str]:
         except ValidationError:
             continue
         current_hashes[record.image_id] = prepare_image_input(metadata).input_hash
+
+    return current_hashes
+
+
+def ready_image_ids(
+    session, tenant_id: str, image_ids: set[str],
+    *, current_hashes: dict[str, str] | None = None,
+) -> set[str]:
+    if not image_ids:
+        return set()
+
+    settings = get_settings()
+    if current_hashes is None:
+        current_hashes = current_image_hashes(session, tenant_id, image_ids)
+    else:
+        current_hashes = {
+            image_id: input_hash
+            for image_id, input_hash in current_hashes.items()
+            if image_id in image_ids
+        }
 
     if not current_hashes:
         return set()
@@ -64,3 +85,76 @@ def ready_image_ids(session, tenant_id: str, image_ids: set[str]) -> set[str]:
         ready.add(row.image_id)
 
     return ready
+
+def failed_image_preparation_jobs(
+    session,
+    tenant_id: str,
+    image_ids: set[str],
+    *, current_hashes: dict[str, str] | None = None,
+) -> dict[str, str]:
+    if not image_ids:
+        return {}
+
+    settings = get_settings()
+    if current_hashes is None:
+        current_hashes = current_image_hashes(session, tenant_id, image_ids)
+    else:
+        current_hashes = {
+            image_id: input_hash
+            for image_id, input_hash in current_hashes.items()
+            if image_id in image_ids
+        }
+
+    if not current_hashes:
+        return {}
+
+    rows = session.execute(
+        select(
+            EmbeddingJobItem.source_id,
+            EmbeddingJobItem.job_id,
+            EmbeddingJobItem.input_hash,
+            EmbeddingJobItem.status,
+        )
+        .join(
+            EmbeddingJob,
+            (
+                EmbeddingJob.tenant_id
+                == EmbeddingJobItem.tenant_id
+            )
+            & (EmbeddingJob.id == EmbeddingJobItem.job_id),
+        )
+        .where(
+            EmbeddingJobItem.tenant_id == tenant_id,
+            EmbeddingJobItem.source_type == "image",
+            EmbeddingJobItem.source_id.in_(current_hashes),
+            EmbeddingJobItem.status.in_(
+                ["failed", "pending", "processing"]
+            ),
+            EmbeddingJob.model == settings.embedding_model,
+            EmbeddingJob.dimensions
+            == settings.embedding_dimensions,
+            EmbeddingJob.task_type == EMBEDDING_TASK_TYPE,
+        )
+        .order_by(
+            EmbeddingJobItem.created_at.desc(),
+            EmbeddingJobItem.id.desc(),
+        )
+    ).all()
+
+    failed = {}
+    active = set()
+
+    for row in rows:
+        if row.input_hash != current_hashes[row.source_id]:
+            continue
+
+        if row.status in {"pending", "processing"}:
+            active.add(row.source_id)
+        else:
+            failed.setdefault(row.source_id, row.job_id)
+
+    return {
+        image_id: job_id
+        for image_id, job_id in failed.items()
+        if image_id not in active
+    }

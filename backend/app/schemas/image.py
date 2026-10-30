@@ -28,6 +28,7 @@ class ImageListItem(BaseModel):
     image_id: str
     embedding_ready: bool = False
     failed_analysis_job_id: str | None = None
+    failed_preparation_job_id: str | None = None
     status: Literal[
         "pending",
         "processing",

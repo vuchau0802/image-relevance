@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { getEmbeddingJob, prepareImageEmbedding } from './api'
+import {
+  getEmbeddingJob,
+  prepareImageEmbedding,
+  retryEmbeddingPreparation,
+} from './api'
 import type { EmbeddingJob } from './api'
 import { useSessionToken } from './useSessionToken'
 
@@ -23,9 +27,11 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 
 export default function PrepareImage({
   imageId,
+  initialFailedJobId,
   onReady,
 }: {
   imageId: string
+  initialFailedJobId?: string | null
   onReady?: () => void
 }) {
   const getSessionToken = useSessionToken()
@@ -38,6 +44,18 @@ export default function PrepareImage({
     return () => activeRequest.current?.abort()
   }, [])
 
+  const failedJobId = job === null
+    ? initialFailedJobId
+    : job.failed > 0 &&
+        (
+          job.status === 'failed' ||
+          job.status === 'completed_with_errors'
+        )
+      ? job.job_id
+      : null
+
+  const canRetry = Boolean(failedJobId)
+
   async function prepare() {
     if (activeRequest.current) {
       return
@@ -47,14 +65,24 @@ export default function PrepareImage({
     activeRequest.current = controller
     setBusy(true)
     setError('')
-    setJob(null)
 
     try {
-      let current = await prepareImageEmbedding(
-        imageId,
-        controller.signal,
-        await getSessionToken(),
-      )
+      const token = await getSessionToken()
+      if (controller.signal.aborted) return
+
+      let current = failedJobId
+        ? await retryEmbeddingPreparation(
+            'image',
+            imageId,
+            failedJobId,
+            controller.signal,
+            token,
+          )
+        : await prepareImageEmbedding(
+            imageId,
+            controller.signal,
+            token,
+          )
 
       while (!controller.signal.aborted) {
         setJob(current)
@@ -111,7 +139,11 @@ export default function PrepareImage({
         disabled={busy}
         onClick={() => void prepare()}
       >
-        {busy ? 'Preparing image…' : 'Prepare image for matching'}
+        {busy
+          ? 'Preparing image…'
+          : canRetry
+            ? 'Retry image preparation'
+            : 'Prepare image for matching'}
       </button>
 
       {job && (

@@ -856,3 +856,199 @@ def create_image_embedding_job(
         )
 
     return inserted_id
+
+class EmbeddingRetrySourceNotFoundError(LookupError):
+    pass
+
+
+class EmbeddingRetryNotAllowedError(ValueError):
+    pass
+
+
+def _prepare_embedding_retry_source(
+    session,
+    tenant_id: str,
+    source_type: str,
+    source_id: str,
+) -> PreparedEmbeddingInput:
+    if source_type not in {"image", "post"}:
+        raise EmbeddingRetryNotAllowedError(
+            "Unsupported embedding source type"
+        )
+
+    model = Image if source_type == "image" else Post
+    source = session.get(
+        model,
+        (tenant_id, source_id),
+        with_for_update=True,
+    )
+
+    if source is None:
+        raise EmbeddingRetrySourceNotFoundError(
+            "Embedding source not found"
+        )
+
+    if source_type == "post":
+        return prepare_post_input(
+            PostInput(
+                id=source.id,
+                title=source.title,
+                content=source.content,
+                required_subject=source.required_subject,
+            )
+        )
+
+    if source.status != "completed":
+        raise EmbeddingRetryNotAllowedError(
+            "Complete image analysis before retrying preparation"
+        )
+
+    metadata = session.get(
+        ImageMetadataRecord,
+        (tenant_id, source_id),
+    )
+    if metadata is None:
+        raise EmbeddingRetryNotAllowedError(
+            "Completed image metadata is missing"
+        )
+
+    return prepare_image_input(
+        ImageMetadata(
+            subject=metadata.subject,
+            category=metadata.category,
+            attributes=metadata.attributes,
+            caption=metadata.caption,
+            confidence=metadata.confidence,
+        )
+    )
+
+def retry_embedding_job(
+    tenant_id: str,
+    source_type: str,
+    source_id: str,
+    failed_job_id: str,
+) -> str:
+    settings = get_settings()
+
+    with SessionLocal.begin() as session:
+        prepared = _prepare_embedding_retry_source(
+            session, tenant_id, source_type, source_id
+        )
+
+        failed_item = session.scalar(
+            select(EmbeddingJobItem).where(
+                EmbeddingJobItem.tenant_id == tenant_id,
+                EmbeddingJobItem.job_id == failed_job_id,
+                EmbeddingJobItem.source_type == source_type,
+                EmbeddingJobItem.source_id == source_id,
+                EmbeddingJobItem.status == "failed",
+            )
+        )
+
+        if failed_item is None:
+            raise EmbeddingRetryNotAllowedError(
+                "A failed preparation item is required for retry"
+            )
+
+        original_job = session.get(
+            EmbeddingJob, (tenant_id, failed_job_id)
+        )
+        if original_job is None:
+            raise EmbeddingRetryNotAllowedError(
+                "Preparation job not found"
+            )
+
+        if (
+            failed_item.input_hash != prepared.input_hash
+            or failed_item.input_text != prepared.text
+        ):
+            raise EmbeddingRetryNotAllowedError(
+                "Content has changed. Start a new preparation job."
+            )
+
+        if (
+            original_job.model != settings.embedding_model
+            or original_job.dimensions
+            != settings.embedding_dimensions
+            or original_job.task_type != EMBEDDING_TASK_TYPE
+        ):
+            raise EmbeddingRetryNotAllowedError(
+                "Embedding settings have changed. "
+                "Start a new preparation job."
+            )
+
+        digest = hashlib.sha256(
+            failed_item.id.encode("utf-8")
+        ).hexdigest()
+        idempotency_key = f"embedding-retry-v1:{digest}"
+
+        existing_id = session.scalar(
+            select(EmbeddingJob.id).where(
+                EmbeddingJob.tenant_id == tenant_id,
+                EmbeddingJob.idempotency_key == idempotency_key,
+            )
+        )
+        if existing_id is not None:
+            return existing_id
+
+        active_id = session.scalar(
+            select(EmbeddingJobItem.job_id)
+            .join(
+                EmbeddingJob,
+                (
+                    EmbeddingJob.tenant_id
+                    == EmbeddingJobItem.tenant_id
+                )
+                & (
+                    EmbeddingJob.id
+                    == EmbeddingJobItem.job_id
+                ),
+            )
+            .where(
+                EmbeddingJobItem.tenant_id == tenant_id,
+                EmbeddingJobItem.source_type == source_type,
+                EmbeddingJobItem.source_id == source_id,
+                EmbeddingJobItem.input_hash == prepared.input_hash,
+                EmbeddingJobItem.status.in_(
+                    ["pending", "processing"]
+                ),
+                EmbeddingJob.model == original_job.model,
+                EmbeddingJob.dimensions
+                == original_job.dimensions,
+                EmbeddingJob.task_type == original_job.task_type,
+            )
+            .order_by(
+                EmbeddingJobItem.created_at,
+                EmbeddingJobItem.id,
+            )
+            .limit(1)
+        )
+        if active_id is not None:
+            return active_id
+
+        retry_id = str(uuid4())
+        session.add(EmbeddingJob(
+            tenant_id=tenant_id,
+            id=retry_id,
+            idempotency_key=idempotency_key,
+            model=original_job.model,
+            dimensions=original_job.dimensions,
+            task_type=original_job.task_type,
+            status="queued",
+        ))
+        session.flush()
+
+        session.add(EmbeddingJobItem(
+            tenant_id=tenant_id,
+            id=str(uuid4()),
+            job_id=retry_id,
+            source_type=source_type,
+            source_id=source_id,
+            input_text=failed_item.input_text,
+            input_hash=failed_item.input_hash,
+            status="pending",
+            attempts=0,
+            max_attempts=3,
+        ))
+
+    return retry_id

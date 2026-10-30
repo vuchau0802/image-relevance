@@ -25,6 +25,7 @@ vi.mock('./api', () => ({
   deleteImage: vi.fn(),
   getImagesPage: vi.fn(),
   getPosts: vi.fn(),
+  getPost: vi.fn(),
   getRecommendations: vi.fn(),
   createPost: vi.fn(),
   uploadImage: vi.fn(),
@@ -75,6 +76,13 @@ function ranking(matched: boolean): RankingResponse {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocked.getPost.mockImplementation(async (postId) => ({
+    id: postId,
+    title: 'Selected fox post',
+    content: 'Synthetic red fox content.',
+    required_subject: 'red fox',
+    failed_preparation_job_id: null,
+  }))
   mocked.getImagesPage.mockResolvedValue({
     items: [],
     next_offset: null,

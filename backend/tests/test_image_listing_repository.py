@@ -99,6 +99,7 @@ def test_listing_is_scoped_to_workspace(image_listing_database):
     assert result.items[0].image_id == "img_003"
     assert result.items[0].creator == "Other creator"
     assert result.items[0].failed_analysis_job_id is None
+    assert result.items[0].failed_preparation_job_id is None
 
     # Internal file paths and checksums are not part of this response.
     assert set(result.items[0].model_dump()) == {
@@ -108,6 +109,7 @@ def test_listing_is_scoped_to_workspace(image_listing_database):
         "created_at",
         "embedding_ready",
         "failed_analysis_job_id",
+        "failed_preparation_job_id",
     }
 
 

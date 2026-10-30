@@ -98,6 +98,7 @@ export interface PostCreateInput {
 
 export interface CreatedPost extends PostSummary {
   content: string
+  failed_preparation_job_id?: string | null
 }
 
 export async function createPost(
@@ -332,6 +333,7 @@ export interface ImageLibraryItem {
   status: ImageUploadResult['status']
   creator: string
   created_at: string
+  failed_preparation_job_id?: string | null
 }
 
 export interface ImageLibraryPage {
@@ -505,6 +507,35 @@ export async function retryImageAnalysis(
           : response.status === 401
             ? 'Please sign in again.'
             : `Could not retry image analysis (${response.status}).`,
+    )
+  }
+
+  return response.json()
+}
+
+export async function retryEmbeddingPreparation(
+  sourceType: 'image' | 'post',
+  sourceId: string,
+  failedJobId: string,
+  signal: AbortSignal,
+  accessToken: string,
+): Promise<EmbeddingJob> {
+  const response = await apiFetch(
+    `/embedding-jobs/${encodeURIComponent(failedJobId)}/retry/${sourceType}/${encodeURIComponent(sourceId)}`,
+    signal,
+    accessToken,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'This content was not found.'
+        : response.status === 409
+          ? 'Preparation cannot be retried. The content or preparation settings may have changed. Start a new preparation request.'
+          : response.status === 401
+            ? 'Please sign in again.'
+            : `Could not retry preparation (${response.status}).`,
     )
   }
 

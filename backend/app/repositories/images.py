@@ -3,7 +3,11 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from app.database import SessionLocal
 from app.models import Image, JobItem
 from app.repositories.metadata import persist_classification
-from app.repositories.image_readiness import ready_image_ids
+from app.repositories.image_readiness import (
+    current_image_hashes,
+    failed_image_preparation_jobs,
+    ready_image_ids,
+)
 from app.services.classification import ClassificationResult
 from app.services.image_files import verify_registered_image
 from app.schemas.image import ImageListItem, ImageListResponse
@@ -70,12 +74,18 @@ def list_images(
             .limit(limit + 1)
         ).all()
 
+        completed_ids = {
+            record.id for record in records[:limit]
+            if record.status == "completed"
+        }
+        hashes = current_image_hashes(session, tenant_id, completed_ids)
         ready_ids = ready_image_ids(
-            session,
-            tenant_id,
-            {record.id for record in records[:limit] if record.status == 'completed'},
+            session, tenant_id, completed_ids, current_hashes=hashes,
         )
-
+        failed_preparation_jobs = failed_image_preparation_jobs(
+            session, tenant_id, completed_ids - ready_ids,
+            current_hashes=hashes,
+        )
         failed_ids = {
             record.id
             for record in records[:limit]
@@ -109,6 +119,7 @@ def list_images(
                 status=record.status,
                 creator=record.creator,
                 created_at=record.created_at,
+                failed_preparation_job_id=failed_preparation_jobs.get(record.id),
             )
             for record in records[:limit]
         ]

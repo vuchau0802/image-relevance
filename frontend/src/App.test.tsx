@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import App from './App'
-import { createPost, getImagesPage, getPosts, getRecommendations } from './api'
+import { createPost, getImagesPage, getPost, getPosts, getRecommendations } from './api'
 import type { RankingResponse } from './api'
 
 const { getSessionToken } = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ vi.mock('./useSessionToken', () => ({
 vi.mock('./api', () => ({
   getImagesPage: vi.fn(),
   getPosts: vi.fn(),
+  getPost: vi.fn(),
   getRecommendations: vi.fn(),
   createPost: vi.fn(),
 }))
@@ -51,6 +52,14 @@ function ranking(
 }
 
 beforeEach(() => {
+  vi.mocked(getPost).mockReset()
+  vi.mocked(getPost).mockImplementation(async (postId) => ({
+    id: postId,
+    title: 'Test post',
+    content: 'Synthetic test content.',
+    required_subject: 'red fox',
+    failed_preparation_job_id: null,
+  }))
   vi.mocked(getImagesPage).mockReset()
   vi.mocked(getImagesPage).mockResolvedValue({
     items: [],
