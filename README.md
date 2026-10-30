@@ -1,6 +1,6 @@
 # Image Relevance
 
-React/TypeScript demo with a Python/FastAPI backend for classifying images
+React/TypeScript application with Clerk sign-in and a Python/FastAPI backend for classifying images
 and matching their descriptions to blog posts using cached embeddings,
 subject rules, and cosine similarity. The Phase 2 corpus run produced
 50 completed images and 50
@@ -10,7 +10,7 @@ reprocessing completed both failed images without changing that history.
 ## Architecture
 
 ```text
-React frontend -> FastAPI /api/posts, /api/posts/{post_id}/images
+React frontend + Clerk session -> FastAPI /api/posts, /api/posts/{post_id}/images
                   /api/images/{image_id}/file and /attribution
              |
        repositories ---------------- PostgreSQL / Alembic
@@ -30,9 +30,9 @@ ranked image previews, creator credits, source/license links, and loading,
 no-match, incomplete, and request-error states. It uses the original ranker;
 the separate context pilot is not connected to this UI.
 
-Latest user-run verification: 336 backend tests passed in 6.54 seconds
-against the isolated test database, with two dependency deprecation
-warnings. All 10 frontend tests, the production build, and ESLint passed.
+Latest user-run verification: 795 backend tests passed against the isolated
+test database, with two existing dependency deprecation warnings. All 125
+frontend tests, the production build, and ESLint passed.
 Default offline backend runs explicitly skip database integration tests.
 Automated tests use fake provider responses rather than real Gemini calls.
 
@@ -147,42 +147,92 @@ removes the /api prefix. Existing unprefixed API URLs remain supported for
 CLI utilities and earlier clients. /health and /api/health both return the
 health response; an unknown /api route returns 404 rather than the frontend.
 
-### Posts, previews, and attribution
+### Sign-in and account configuration
 
-The post picker loads every page of GET /api/posts?offset=0&limit=50 instead
-of duplicating a post list in React. Pages contain items and next_offset;
-null next_offset means the final page. Pagination is ordered by post ID.
-The endpoint lists all posts for the selected tenant, including calibration
-and development posts if they have been seeded. An empty list and a failed
-load have separate states; Reload posts retries a failed list request.
+Configure CLERK_ISSUER and CLERK_AUTHORIZED_PARTIES in the root .env using
+the placeholders in .env.example. Authorized parties must include the exact
+origins used to open the app, such as http://127.0.0.1:8000 and
+http://127.0.0.1:5173. Use the issuer for the same Clerk application as the
+frontend publishable key.
 
-The shared frontend request helper sends X-Tenant-ID: demo for post listing,
-recommendations, image files, and attribution. This is caller-controlled
-tenant scoping for a local demo, not authenticated user identity. Login,
-server-derived workspace ownership, and private user uploads are planned.
-No Gemini API key is sent to the browser. Ranking uses cached embeddings.
+For a new frontend setup, from frontend:
 
-GET /api/images/{image_id}/file looks up the image by tenant and checks the
-registered corpus path and SHA-256 before serving the original JPEG.
-GET /api/images/{image_id}/attribution returns the creator, source URL, and
-license URL. Both require the tenant header. The frontend fetches image
-blobs with that header and releases temporary object URLs. Attribution links
-allow only http(s) URLs. Source licenses apply separately from the code license.
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Set VITE_CLERK_PUBLISHABLE_KEY in frontend/.env.local. Do not overwrite an
+existing file. The root .env configures the backend; frontend/.env.local
+configures Vite and remains separate. Both local environment files are
+ignored. Commit only placeholder examples. Rebuild the frontend after
+changing its environment configuration.
+
+The browser sends a Clerk session bearer token. The backend validates it
+and derives a stable private workspace from the verified issuer and user.
+X-Tenant-ID does not grant access. Content endpoints require sign-in and
+scope database lookups to that workspace. GET /api/me checks the session;
+POST /api/workspace creates or returns its workspace. Seeded demo content
+does not automatically become content in a new account's workspace.
+
+### Posts, uploads, previews, and attribution
+
+Users can create, edit, prepare, and delete their own posts. The post picker
+loads API pages ordered by post ID. Editing content requires preparation of
+its current embedding before matching. The selected post's details include
+the current failed preparation job when a retry is available.
+
+Users can upload JPEG images up to 10 MiB and 20 million pixels. Uploads
+are validated, normalized, and stored under data/uploads/<workspace>/.
+Duplicate uploads reuse the workspace's existing image. Your images lists
+private uploads with analysis status and current embedding readiness.
+Analyze the image, then prepare its embedding before matching. Images that
+need review are excluded from matching.
+
+GET /api/images/{image_id}/file verifies the registered path, workspace,
+and SHA-256 before serving a JPEG. Attribution is returned separately by
+GET /api/images/{image_id}/attribution. The frontend fetches authenticated
+image blobs and releases temporary object URLs. Source/license links allow
+only http(s) URLs; source licenses apply separately from the code license.
+No Gemini API key is sent to the browser.
+
+Deleting a post removes its current source and embeddings. Deleting an
+image removes access immediately and queues durable physical file cleanup.
+Queued or running processing blocks deletion. Image cleanup validates the
+private path and checksum and is retried by the workspace worker. Historical
+processing/audit records are retained where supported; terminal vision item
+rows referencing a deleted image are removed and job summaries refreshed.
+
+### Continuous processing and recovery
+
+Run the API and the workspace worker in separate terminals. From backend:
+
+```powershell
+..\.venv\Scripts\python.exe -m app.workers.workspace_runner
+```
+
+Keep this worker running while using analysis, preparation, and image
+deletion. The API queues work; it does not run the continuous worker.
+The worker discovers workspace jobs, processes vision and embedding items,
+recovers expired claims, respects daily allowances, and processes image
+file cleanup tasks. Stop it with Ctrl+C; restart it after worker code changes.
+
+Failed analysis and preparation jobs can be retried explicitly. Each retry
+preserves the previous failure history and reuses duplicate requests or
+compatible active work. Preparation retries require unchanged input and
+embedding settings; changed content/settings require a new preparation
+request. Failure discovery restores retry controls after a page refresh.
+Retries still consume allowance when they start a provider request.
 
 Cards show cosine similarity as a score, not a correctness probability.
-No-match and unsupported-subject responses show an explanation; incomplete
-results are labeled provisional. Aborted or outdated recommendation responses
-are ignored when switching posts.
-
-If the backend is unavailable, a new recommendation request displays an error
-and Try again. Restart the backend and click Try again to retry. Existing
-results do not automatically check backend health; select another post to
-trigger a request when testing an outage.
+No-match and unsupported-subject responses explain abstention; incomplete
+results are provisional. Requests are cancelled or ignored when switching
+posts. If the backend is unavailable, a recommendation request displays an
+error and Try again. Restore the backend and retry without reloading the page.
 
 Commit package-lock.json; node_modules/ and dist/ remain ignored. This root
 README is the single setup README. HTTPS, hosted storage, backups, persistent
-worker supervision, and authenticated multi-user deployment remain separate
-work. A complete real-browser end-to-end test suite is not established.
+worker supervision, and public deployment remain separate work. A complete
+real-browser end-to-end test suite is not established.
 
 ## Download and seed
 
@@ -285,16 +335,12 @@ and creates an audit record. Internal SDK retries are disabled with attempts=0.
 
 ## Job-status API and call audit
 
-```powershell
-Invoke-RestMethod `
-    -Uri "http://127.0.0.1:8000/jobs/YOUR_JOB_ID" `
-    -Headers @{ "X-Tenant-ID" = "demo" } |
-    ConvertTo-Json
-```
-
-A missing tenant header returns 422; a job outside that tenant returns 404.
-The header is caller-controlled for local development. Authentication must
-provide trusted tenant identity before deployment.
+Signed-in clients can read GET /api/jobs/{job_id} for analysis progress and
+GET /api/embedding-jobs/{job_id} for preparation progress. Both require a
+valid session bearer token and return 404 for jobs outside that workspace.
+The browser obtains its session token through Clerk; a tenant header is not
+an authentication substitute. Internal corpus utilities continue to accept
+explicit tenant IDs and should run only in a trusted operator environment.
 
 New calls are logged to ai_calls. A started row is committed atomically with
 the tenant's daily reservation before client construction. Completion stores
@@ -479,35 +525,31 @@ npm.cmd run lint
 ```
 
 npm.cmd test runs Vitest once; npm.cmd run test:watch starts watch mode.
-The 10 frontend tests cover post selection/empty/retry states, multi-page
-loading and pagination failures, recommendation no-match/retry behavior,
-and ignoring a late response after post selection changes. API responses
-are mocked; image preview and attribution components are mocked in App tests.
-These tests do not establish real browser image decoding or external link
-navigation. No running backend or provider credentials are required.
+Frontend tests cover authenticated request helpers, backend session states,
+post selection/create/edit/delete, image uploads and pagination, analysis and
+embedding retries, failure recovery after reload, request cancellation, and
+recommendation refresh. API responses are mocked; image previews and
+attribution are mocked in App tests. No running backend or provider
+credentials are required. These tests do not establish real browser image
+decoding or external link navigation.
 
 ### Latest verification
 
-- User-run isolated backend suite: 336 passed, two existing dependency
-  deprecation warnings, in 6.54 seconds.
-- Image API: 13 tests passed for file/attribution responses, tenant lookup,
-  required headers, missing files, checksum mismatch, and path containment.
-- Post API/repository: eight API tests and four isolated-database tests cover
-  tenant forwarding/filtering, input validation, ordering, and pagination.
-- Frontend serving: nine tests passed using a temporary build, covering index
-  and asset delivery, health/API precedence, unknown paths, and absent builds.
-- Frontend: 10 tests passed in 1.28 seconds; build and lint passed. An observed
-  duplicate React key warning was corrected and was absent in the rerun.
-- Live local requests: /api/health returned 200; an unknown /api path returned
-  404. Image-file requests returned 200 for demo, 404 for another tenant,
-  and 422 without the header. Attribution JSON was returned for img_001.
-- User-supplied browser output showed the API-backed post list, fox/Yosemite
-  recommendations, creator/source/license credits, and a penguin no-match
-  state. An outage showed a 502 error and Try again, followed by restored
-  results after backend restart. Page text alone does not independently
-  establish image rendering, link navigation, or the exact recovery action.
-- Earlier dependency/migration/readiness checks passed at their recorded
-  checkpoints. They were not rerun for this documentation-only update.
+- User-run isolated backend suite: 795 passed, with two existing dependency
+  deprecation warnings. Tests use fake provider responses.
+- Frontend: 125 tests passed; production build and ESLint passed.
+- Local browser checks established sign-in, account workspace creation,
+  private uploads, analysis/preparation progress, post editing and deletion,
+  and matching. The edited forest post returned an image at similarity 0.852.
+- Browser image deletion was verified. Three physical cleanup tasks then
+  completed on their first attempt with no errors after the worker started.
+- Analysis and embedding retry behavior is covered by automated tests.
+  Live retry verification remains pending: the user's workspace had no
+  failed images or failed preparation jobs available at the checkpoint.
+- Image readiness and failure discovery share metadata reads. A batching
+  test checks the same query count for one and seven images.
+- These are local checks, not evidence of a publicly deployed service or a
+  complete automated browser end-to-end suite.
 
 Original evaluation artifacts remain under docs/evidence and are separate
 from development checks. The preserved first-run report SHA-256 remains
@@ -529,7 +571,8 @@ results and do not replace the original 9/12 new-query evaluation.
   it does not prove accuracy. img_006's species remains unconfirmed.
 - Embeddings, ranking, subject guards, no-match reasons, and measured
   calibration/regression checks and the local frontend demo are implemented.
-  Review APIs, authenticated tenant identity, private uploads, hosted
+  Clerk authentication, private uploads, account-owned content, deletion,
+  and processing retries are implemented locally. Review APIs, hosted
   deployment, and independent held-out evaluation remain outstanding.
   Single-server static frontend serving is implemented. Subject rules
   rely on model descriptions and explicit aliases.
