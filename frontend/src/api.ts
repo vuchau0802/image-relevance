@@ -218,7 +218,9 @@ export async function uploadImage(
 
   if (!response.ok) {
     const message =
-      response.status === 413
+      response.status === 409
+        ? 'Your workspace image limit has been reached. Delete an image before uploading another.'
+        : response.status === 413
         ? 'The upload is too large. Choose a JPEG under 10 MiB.'
         : response.status === 422
           ? 'Choose a valid JPEG up to 20 million pixels and provide its creator.'

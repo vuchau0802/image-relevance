@@ -1,13 +1,17 @@
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+
 from sqlalchemy.dialects.postgresql import insert
 
 from app.database import SessionLocal
 from app.models import Image
 from app.schemas.upload import ImageUploadResponse
 from app.services.upload_storage import StoredImageUpload
+from app.config import get_settings
 
+class ImageUploadLimitError(ValueError):
+    pass
 
 def register_image_upload(
     tenant_id: str,
@@ -35,6 +39,45 @@ def register_image_upload(
         raise ValueError("Provide a creator name of 1–200 characters")
 
     with SessionLocal.begin() as session:
+        # Serialize upload registration within this workspace.
+        # PostgreSQL releases this lock when the transaction ends.
+        session.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    func.hashtextextended(
+                        f"image-upload:{tenant_id}", 0
+                    )
+                )
+            )
+        )
+
+        existing = session.execute(
+            select(Image.id, Image.status).where(
+                Image.tenant_id == tenant_id,
+                Image.checksum == upload.checksum,
+            )
+        ).one_or_none()
+
+        # Duplicates do not consume another image slot.
+        if existing is not None:
+            return ImageUploadResponse(
+                image_id=existing.id,
+                status=existing.status,
+            )
+
+        limit = get_settings().max_images_per_workspace
+        count = session.scalar(
+            select(func.count())
+            .select_from(Image)
+            .where(Image.tenant_id == tenant_id)
+        )
+
+        if count >= limit:
+            raise ImageUploadLimitError(
+                f"Your workspace has reached its limit of "
+                f"{limit} images. Delete an image before uploading another."
+            )
+
         row = session.execute(
             insert(Image)
             .values(
@@ -65,5 +108,6 @@ def register_image_upload(
             image_id=row.id,
             status=row.status,
         )
+
 
     return result

@@ -38,6 +38,7 @@ from app.repositories.image_deletion import (
     ImageNotFoundError,
     delete_image,
 )
+from app.repositories.uploads import ImageUploadLimitError
 
 router = APIRouter(prefix="/images", tags=["images"], route_class=UploadLimitRoute)
 
@@ -155,6 +156,11 @@ async def upload_image(
         except InvalidImageUploadError as error:
             raise HTTPException(
                 status_code=422,
+                detail=str(error),
+            ) from None
+        except ImageUploadLimitError as error:
+            raise HTTPException(
+                status_code=409,
                 detail=str(error),
             ) from None
     finally:

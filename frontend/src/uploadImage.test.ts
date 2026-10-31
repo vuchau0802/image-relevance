@@ -59,6 +59,7 @@ test.each([
   [422, 'Choose a valid JPEG'],
   [401, 'Please sign in again'],
   [503, 'Could not upload the image (503)'],
+  [409, 'Your workspace image limit has been reached'],
 ] as const)('explains HTTP %s failures', async (status, message) => {
   mockedFetch.mockResolvedValue(new Response(null, { status }))
 

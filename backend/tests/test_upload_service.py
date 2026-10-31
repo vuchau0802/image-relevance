@@ -8,7 +8,7 @@ from PIL import Image
 from app.schemas.upload import ImageUploadResponse
 from app.services import upload_storage, uploads
 from app.services.upload_validation import InvalidImageUploadError
-
+from app.repositories.uploads import ImageUploadLimitError
 
 @pytest.fixture
 def upload_context(monkeypatch, tmp_path):
@@ -152,3 +152,58 @@ def test_invalid_image_never_reaches_registration(upload_context):
 
     ctx.register.assert_not_called()
     assert not (ctx.root / "data").exists()
+
+def test_quota_rejection_removes_only_new_file(upload_context):
+    ctx = upload_context
+
+    original = uploads.create_uploaded_image(
+        ctx.tenant,
+        jpeg_bytes(),
+        creator="Original creator",
+    )
+    original_path = stored_files(ctx)[0]
+    original_bytes = original_path.read_bytes()
+
+    ctx.register.side_effect = ImageUploadLimitError(
+        "Workspace image limit reached"
+    )
+
+    with pytest.raises(
+        ImageUploadLimitError, match="image limit"
+    ):
+        uploads.create_uploaded_image(
+            ctx.tenant,
+            jpeg_bytes(),
+            creator="Second creator",
+        )
+
+    assert stored_files(ctx) == [original_path]
+    assert original_path.name == f"{original.image_id}.jpg"
+    assert original_path.read_bytes() == original_bytes
+
+
+def test_quota_cleanup_failure_preserves_quota_error(
+    upload_context, monkeypatch, caplog
+):
+    ctx = upload_context
+    rejection = ImageUploadLimitError(
+        "Workspace image limit reached"
+    )
+    ctx.register.side_effect = rejection
+
+    monkeypatch.setattr(
+        uploads,
+        "remove_duplicate_file",
+        Mock(side_effect=OSError("File temporarily locked")),
+    )
+
+    with pytest.raises(ImageUploadLimitError) as caught:
+        uploads.create_uploaded_image(
+            ctx.tenant,
+            jpeg_bytes(),
+            creator="Example creator",
+        )
+
+    assert caught.value is rejection
+    assert len(stored_files(ctx)) == 1
+    assert "Could not remove quota-rejected upload" in caplog.text

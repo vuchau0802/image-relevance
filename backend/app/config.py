@@ -51,6 +51,10 @@ class Settings(BaseSettings):
         le=1,
     )
 
+    max_images_per_workspace: int = Field(
+        default=100,
+        ge=1,
+    )
     clerk_issuer: str | None = Field(
         default=None,
         min_length=1,

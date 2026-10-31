@@ -1,6 +1,6 @@
 import logging
 
-from app.repositories.uploads import register_image_upload
+from app.repositories.uploads import ImageUploadLimitError, register_image_upload
 from app.schemas.upload import ImageUploadResponse
 from app.services import upload_storage
 from app.services.upload_storage import StoredImageUpload
@@ -49,13 +49,25 @@ def create_uploaded_image(
         data=data,
     )
 
-    result = register_image_upload(
-        tenant_id=tenant_id,
-        upload=stored,
-        creator=creator,
-        source_url=source_url,
-        license_url=license_url,
-    )
+    try:
+        result = register_image_upload(
+            tenant_id=tenant_id,
+            upload=stored,
+            creator=creator,
+            source_url=source_url,
+            license_url=license_url,
+        )
+    except ImageUploadLimitError:
+        # Registration rejected the upload and rolled back.
+        # Remove only the new candidate file.
+        try:
+            remove_duplicate_file(tenant_id, stored)
+        except OSError:
+            logger.exception(
+                "Could not remove quota-rejected upload %s",
+                stored.image_id,
+            )
+        raise
 
     if result.image_id != stored.image_id:
         # Registration committed and returned an existing image.

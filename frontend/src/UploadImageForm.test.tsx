@@ -161,3 +161,39 @@ test('required fields prevent an empty submission', async () => {
   expect(mockedUpload).not.toHaveBeenCalled()
   expect(getSessionToken).not.toHaveBeenCalled()
 })
+
+test('quota rejection preserves the file and creator without reporting success', async () => {
+  const message =
+    'Your workspace image limit has been reached. Delete an image before uploading another.'
+
+  mockedUpload.mockRejectedValue(new Error(message))
+  const onUploaded = vi.fn()
+
+  render(<UploadImageForm onUploaded={onUploaded} />)
+  const { file } = await fillForm()
+
+  await act(async () => {
+    fireEvent.submit(
+      screen.getByRole('form', { name: 'Upload image' }),
+    )
+  })
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    message,
+  )
+  expect(
+    screen.getByRole('textbox', { name: 'Image creator' }),
+  ).toHaveValue('Example creator')
+
+  const input = screen.getByLabelText(
+    'JPEG image',
+  ) as HTMLInputElement
+  expect(input.files?.[0]).toBe(file)
+
+  expect(
+    screen.getByRole('button', { name: 'Upload image' }),
+  ).toBeEnabled()
+  expect(onUploaded).not.toHaveBeenCalled()
+  expect(screen.queryByText(/Image saved:/)).not.toBeInTheDocument()
+  expect(mockedUpload).toHaveBeenCalledOnce()
+})

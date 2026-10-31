@@ -9,7 +9,7 @@ from app.api.dependencies import require_workspace
 from app.main import create_app
 from app.schemas.upload import ImageUploadResponse
 from app.services.upload_validation import InvalidImageUploadError
-
+from app.repositories.uploads import ImageUploadLimitError
 
 @pytest.fixture(params=["", "/api"])
 def upload_api(request, monkeypatch, tmp_path):
@@ -185,3 +185,27 @@ def test_client_cannot_override_workspace(upload_api):
 
     assert response.status_code == 201
     assert ctx.service.call_args.kwargs["tenant_id"] == ctx.tenant
+
+def test_workspace_image_limit_returns_409(upload_api):
+    ctx = upload_api
+    message = (
+        "Your workspace has reached its limit of 100 images. "
+        "Delete an image before uploading another."
+    )
+    ctx.service.side_effect = ImageUploadLimitError(message)
+
+    response = ctx.client.post(
+        ctx.path,
+        data={"creator": "Example creator"},
+        files={
+            "file": ("photo.jpg", b"test-image", "image/jpeg")
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": message}
+    ctx.service.assert_called_once_with(
+        tenant_id=ctx.tenant,
+        data=b"test-image",
+        creator="Example creator",
+    )
