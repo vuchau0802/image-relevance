@@ -153,3 +153,39 @@ At that earlier checkpoint, the corpus processing job was unfinished.
 - Latest user-run suite: 302 passed, two dependency warnings, in 8.89
   seconds. Dependency consistency, migration agreement, demo readiness,
   and the preserved report hash were verified by the user.
+
+
+## Private application and final local verification (2026-10-31)
+
+- Used AI assistance to implement and review Clerk session verification,
+  account-owned workspaces, private posts/uploads, analysis and embedding
+  jobs, the continuous workspace worker, and authenticated image retrieval.
+  The user applied changes and ran the verification commands throughout.
+- Added post editing/deletion, private image deletion with durable file
+  cleanup, explicit analysis/preparation retries, and discovery of current
+  failed jobs after reload. Original failure history remains preserved.
+- Added a configurable per-workspace image count limit, duplicate handling
+  at capacity, rejected-candidate cleanup, and transaction-scoped concurrency
+  protection. This is a count limit, not a total storage or request quota.
+- Tests caught misplaced upload-limit checks after insertion; moved the
+  lock, duplicate lookup, and capacity check before insertion. Independent
+  database connections verified competition for the final image slot.
+- Final review found that a progress-request failure could reopen the
+  original job. Fixed all three analysis/preparation controls to resume the
+  current queued/running job and added three regression cases.
+- Latest user-run verification: 805 backend tests passed with two existing
+  dependency deprecation warnings; 130 frontend tests, build, and lint passed.
+  Backend tests use the isolated test database and fake provider responses.
+- The user ran a two-account browser demo. Own image access returned 200,
+  cross-account image access returned 404 in both directions, and Account A's
+  post returned 200 to A and 404 to B. No bearer token returned 401.
+- The user confirmed editing/re-preparing and deleting disposable Account A
+  content, persistence after refresh, unaffected Account B content, and the
+  signed-out UI. Earlier three physical file cleanup tasks completed in one
+  attempt with no errors. This is manual verification, not an automated
+  browser end-to-end suite.
+- Live failed-job retries remain unverified because no failed image or
+  preparation jobs were available. Orphan reconciliation, byte-based storage
+  quotas, public hosting, backups, rate limits, and worker supervision remain
+  limitations. The original evaluation artifacts and accuracy claims were
+  preserved without reclassifying development checks as held-out results.
