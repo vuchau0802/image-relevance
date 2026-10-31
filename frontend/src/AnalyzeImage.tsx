@@ -71,7 +71,11 @@ export default function AnalyzeImage({
       const token = await getSessionToken()
       if (controller.signal.aborted) return
 
-      let current = failedJobId
+      let current = job && (
+        job.status === 'queued' || job.status === 'running'
+      )
+        ? await getImageAnalysisJob(job.job_id, controller.signal, token)
+        : failedJobId
         ? await retryImageAnalysis(
             imageId,
             failedJobId,

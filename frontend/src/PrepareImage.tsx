@@ -70,7 +70,11 @@ export default function PrepareImage({
       const token = await getSessionToken()
       if (controller.signal.aborted) return
 
-      let current = failedJobId
+      let current = job && (
+        job.status === 'queued' || job.status === 'running'
+      )
+        ? await getEmbeddingJob(job.job_id, controller.signal, token)
+        : failedJobId
         ? await retryEmbeddingPreparation(
             'image',
             imageId,

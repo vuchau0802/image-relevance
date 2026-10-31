@@ -349,3 +349,38 @@ test('blocks duplicate retries and aborts on unmount', async () => {
 
   expect(mockedProgress).not.toHaveBeenCalled()
 })
+
+
+test('resumes the analysis retry job after polling fails', async () => {
+  vi.useFakeTimers()
+  try {
+    mockedStart.mockResolvedValue(job('failed', { job_id: 'original_job' }))
+    mockedRetry.mockResolvedValue(job('queued', { job_id: 'retry_job' }))
+    mockedProgress
+      .mockRejectedValueOnce(new Error('Progress unavailable'))
+      .mockResolvedValueOnce(job('completed', { job_id: 'retry_job' }))
+
+    render(<AnalyzeImage imageId="img_test" />)
+    await clickAnalyze()
+    await clickRetry()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Progress unavailable',
+    )
+
+    await clickAnalyze()
+
+    expect(mockedStart).toHaveBeenCalledOnce()
+    expect(mockedRetry).toHaveBeenCalledOnce()
+    expect(mockedProgress.mock.calls.map((call) => call[0])).toEqual([
+      'retry_job',
+      'retry_job',
+    ])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Analysis complete.')
+  } finally {
+    vi.useRealTimers()
+  }
+})

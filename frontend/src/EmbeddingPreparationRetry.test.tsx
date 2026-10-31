@@ -164,3 +164,46 @@ test.each(sources)('%s preparation blocks duplicate retries and aborts on unmoun
   expect(onReady).not.toHaveBeenCalled()
   expect(getEmbeddingJob).not.toHaveBeenCalled()
 })
+
+test.each(sources)('%s preparation resumes the retry job after polling fails', async (source) => {
+  vi.useFakeTimers()
+  try {
+    const onReady = vi.fn()
+    vi.mocked(retryEmbeddingPreparation).mockResolvedValue(
+      job('queued', 'retry_job'),
+    )
+    vi.mocked(getEmbeddingJob)
+      .mockRejectedValueOnce(new Error('Progress unavailable'))
+      .mockResolvedValueOnce(job('completed', 'retry_job'))
+
+    showPreparation(source, onReady)
+    const label = source === 'image'
+      ? 'Prepare image for matching'
+      : 'Prepare for matching'
+    await clickButton(label)
+    await clickButton(`Retry ${source} preparation`)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Progress unavailable',
+    )
+    expect(onReady).not.toHaveBeenCalled()
+
+    await clickButton(label)
+
+    expect(onReady).toHaveBeenCalledOnce()
+    expect(retryEmbeddingPreparation).toHaveBeenCalledOnce()
+    const creator = source === 'image'
+      ? prepareImageEmbedding
+      : preparePostEmbedding
+    expect(creator).toHaveBeenCalledOnce()
+    expect(
+      vi.mocked(getEmbeddingJob).mock.calls.map((call) => call[0]),
+    ).toEqual(['retry_job', 'retry_job'])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  } finally {
+    vi.useRealTimers()
+  }
+})
